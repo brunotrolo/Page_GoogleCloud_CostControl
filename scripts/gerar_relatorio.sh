@@ -53,7 +53,7 @@ run_query () {
              -e "s|@START@|${START}|g" \
              -e "s|@END@|${END}|g" "$file")"
 
-  if bq query --use_legacy_sql=false --format=prettyjson "$sql" > /tmp/q.json 2>/tmp/q.err; then
+  if bq query --use_legacy_sql=false --format=prettyjson -- "$sql" > /tmp/q.json 2>/tmp/q.err; then
     python3 scripts/json_to_md.py /tmp/q.json >> "$OUT" || echo "_(sem linhas / erro ao formatar)_" >> "$OUT"
   else
     echo '```' >> "$OUT"

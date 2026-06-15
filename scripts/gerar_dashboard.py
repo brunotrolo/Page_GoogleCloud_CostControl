@@ -35,7 +35,7 @@ def run_sql_file(fname: str):
               .replace("@START@", START.isoformat())
               .replace("@END@", END.isoformat()))
     out = subprocess.run(
-        ["bq", "query", "--use_legacy_sql=false", "--format=prettyjson", sql],
+        ["bq", "query", "--use_legacy_sql=false", "--format=prettyjson", "--", sql],
         capture_output=True, text=True,
     )
     if out.returncode != 0:
