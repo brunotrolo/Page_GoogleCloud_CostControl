@@ -57,6 +57,12 @@ by_service = to_float(run_sql_file("01_resumo_por_servico.sql"), "custo_liquido"
 by_sku = to_float(run_sql_file("02_por_sku.sql"), "custo_liquido", "custo_bruto", "quantidade")
 by_day = to_float(run_sql_file("04_por_dia.sql"), "custo_liquido")
 by_project = to_float(run_sql_file("08_por_projeto.sql"), "custo_liquido")
+by_mcp = to_float(run_sql_file("09_uso_por_mcp.sql"), "custo_liquido", "requisicoes", "cpu_segundos")
+
+# custo médio por requisição (= custo por "chamada de ferramenta")
+for r in by_mcp:
+    req = r.get("requisicoes") or 0
+    r["custo_por_requisicao"] = round(r.get("custo_liquido", 0) / req, 6) if req else 0
 
 total = round(sum(r.get("custo_liquido", 0) for r in by_service), 2)
 currency = (by_service[0].get("moeda") if by_service else "BRL") or "BRL"
@@ -70,6 +76,7 @@ if not by_service and not by_sku:
     sys.exit(0)
 
 data = {
+    "by_mcp": by_mcp,
     "generated_at": END.isoformat(),
     "fonte": "Atualizado automaticamente a partir do BigQuery Billing Export.",
     "period": {"start": START.isoformat(), "end": END.isoformat()},

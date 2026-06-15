@@ -58,6 +58,14 @@
       <p class="muted" id="dayEmpty" style="display:none">Disponível após ligar o BigQuery Billing Export (detalhe diário).</p>
     </section>
 
+    <section id="mcpSection">
+      <h2>🤖 Uso por MCP — chamadas e custo por chamada</h2>
+      <p class="muted" style="margin-top:-6px">Cada chamada de ferramenta do MCP ≈ 1 requisição. Aqui você vê quantas chamadas e o custo médio de cada uma.</p>
+      <table id="mcpTable"><thead><tr>
+        <th>MCP</th><th class="num">Chamadas</th><th class="num">CPU (s)</th><th class="num">Custo total</th><th class="num">Custo / chamada</th>
+      </tr></thead><tbody></tbody></table>
+    </section>
+
     <section>
       <h2>🔎 Origem de cada centavo — por SKU</h2>
       <p class="muted" style="margin-top:-6px">O item exato cobrado. É aqui que você vê de onde vem cada R$.</p>
@@ -114,6 +122,15 @@
           d.by_service[0].servico + " · " + fmt(d.by_service[0].custo_liquido, cur);
       if (d.by_sku && d.by_sku.length)
         document.getElementById("topSku").textContent = d.by_sku[0].sku;
+
+      // tabela por MCP (chamadas + custo por chamada)
+      const fmt6 = (n) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: cur, minimumFractionDigits: 4, maximumFractionDigits: 6 }).format(n || 0);
+      fillTable("mcpTable", (d.by_mcp || []), row => `
+        <td>${row.mcp || ""}</td>
+        <td class="num">${fmtNum(row.requisicoes)}</td>
+        <td class="num">${fmtNum(row.cpu_segundos)}</td>
+        <td class="num">${fmt(row.custo_liquido, cur)}</td>
+        <td class="num">${fmt6(row.custo_por_requisicao)}</td>`);
 
       // tabela SKU (com barra proporcional)
       const maxSku = Math.max(...(d.by_sku || []).map(s => s.custo_liquido), 0.0001);
