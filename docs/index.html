@@ -299,13 +299,18 @@
 
       // ---------- chamadas por dia ----------
       const calls={}; (d.by_calls||[]).forEach(r=>calls[r.mcp+"|"+r.dia]=r.chamadas);
+      const callsTot={}; days.forEach(dia=>callsTot[dia]=mcps.reduce((s,m)=>s+(calls[m+"|"+dia]||0),0));
+      const maxCallSeg=Math.max(1,...days.flatMap(dia=>mcps.map(m=>calls[m+"|"+dia]||0)));
       const dsCalls=mcps.map((m,i)=>({label:nice(m),data:days.map(dia=>calls[m+"|"+dia]||0),
         backgroundColor:colorOf(m,i),borderRadius:5,stack:"c",
-        datalabels:{display:false}}));
+        datalabels:{display:ctx=>ctx.dataset.data[ctx.dataIndex]>=maxCallSeg*0.10,
+          color:"#0a0e17",font:{weight:800,size:10},formatter:v=>v>0?NF(v):""}}));
       new Chart(byId("callsChart"),{type:"bar",data:{labels:days.map(fmtDia),datasets:dsCalls},
-        options:{maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:8}},datalabels:{display:false},
-          tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${NF(c.parsed.y)} chamadas`}}},
-          scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:"rgba(255,255,255,.05)"}}}}});
+        options:{maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:8}},
+          tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${NF(c.parsed.y)} chamadas`,
+            footer:items=>"Total: "+NF(items.reduce((s,i)=>s+i.parsed.y,0))+" chamadas"}}},
+          scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:"rgba(255,255,255,.05)"}}}},
+        plugins:[totalOnTopNum(days,callsTot)]});
     }
 
     // plugin: desenha o TOTAL de cada barra empilhada em cima
@@ -316,6 +321,15 @@
         days.forEach((dia,idx)=>{const t=totalByDay[dia]||0;if(t<=0)return;
           const xp=x.getPixelForValue(idx);const yp=y.getPixelForValue(t)-6;
           ctx.fillText(BRL(t,2).replace("R$ ","R$"),xp,yp);});
+        ctx.restore();}};
+    }
+    // plugin: total (número simples) em cima de cada barra empilhada
+    function totalOnTopNum(days,totByDay){
+      return {id:"totalOnTopNum",afterDatasetsDraw(chart){
+        const{ctx,scales:{x,y}}=chart;ctx.save();
+        ctx.font="800 11px Inter";ctx.fillStyle="#eef2f8";ctx.textAlign="center";
+        days.forEach((dia,idx)=>{const t=totByDay[dia]||0;if(t<=0)return;
+          ctx.fillText(NF(t),x.getPixelForValue(idx),y.getPixelForValue(t)-6);});
         ctx.restore();}};
     }
     function byId(id){return document.getElementById(id);}
