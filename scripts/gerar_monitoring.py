@@ -81,6 +81,7 @@ def daily_sum(project: str, service: str, metric: str):
 by_day_total = defaultdict(float)
 by_calls = []
 by_mcp = []
+by_mcp_day = []
 total_cost = 0.0
 
 for project, service, vcpu, mem in SERVICES:
@@ -98,6 +99,16 @@ for project, service, vcpu, mem in SERVICES:
         by_day_total[day] += sec * cost_per_sec
     for day, c in reqs.items():
         by_calls.append({"mcp": service, "dia": day, "chamadas": round(c)})
+
+    # custo + chamadas por MCP por dia (para rótulos e ranking "hoje")
+    dias = set(bit) | set(reqs)
+    for day in dias:
+        by_mcp_day.append({
+            "mcp": service,
+            "dia": day,
+            "custo": round(bit.get(day, 0.0) * cost_per_sec, 2),
+            "chamadas": round(reqs.get(day, 0.0)),
+        })
 
     by_mcp.append({
         "mcp": service,
@@ -121,6 +132,7 @@ data = {
     "currency": "BRL",
     "total": round(total_cost, 2),
     "by_mcp": sorted(by_mcp, key=lambda x: -x["custo_liquido"]),
+    "by_mcp_day": by_mcp_day,
     "by_calls": by_calls,
     "by_service": by_service,
     "by_sku": [],

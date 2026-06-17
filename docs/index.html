@@ -5,98 +5,75 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cloud Cost Radar — GCP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <style>
-    :root {
-      --bg: #0a0e17; --bg2: #0e1420;
-      --card: rgba(22, 29, 43, 0.7); --card-brd: rgba(255,255,255,.07);
-      --txt: #eef2f8; --muted: #8a97a8; --dim: #5b6678;
-      --accent: #6ea8fe; --accent2: #8b5cf6;
-      --green: #34d399; --amber: #fbbf24; --red: #f87171; --pink: #f472b6;
-      --grad: linear-gradient(135deg, #6ea8fe 0%, #8b5cf6 100%);
+    :root{
+      --bg:#0a0e17; --card:rgba(22,29,43,.72); --brd:rgba(255,255,255,.08);
+      --txt:#eef2f8; --muted:#8a97a8; --dim:#5b6678;
+      --blue:#6ea8fe; --purple:#8b5cf6; --green:#34d399; --amber:#fbbf24; --red:#f87171; --pink:#f472b6;
+      --grad:linear-gradient(135deg,#6ea8fe,#8b5cf6);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
-    body {
-      font-family: 'Inter', -apple-system, sans-serif; color: var(--txt);
-      background:
-        radial-gradient(1200px 600px at 10% -10%, rgba(110,168,254,.12), transparent 60%),
-        radial-gradient(1000px 500px at 110% 10%, rgba(139,92,246,.12), transparent 55%),
-        var(--bg);
-      min-height: 100vh; line-height: 1.5; letter-spacing: -0.01em;
-      -webkit-font-smoothing: antialiased;
-    }
-    .mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
-    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:'Inter',sans-serif;color:var(--txt);-webkit-font-smoothing:antialiased;letter-spacing:-.01em;
+      background:radial-gradient(1200px 600px at 8% -10%,rgba(110,168,254,.13),transparent 60%),
+                 radial-gradient(1000px 500px at 110% 5%,rgba(139,92,246,.13),transparent 55%),var(--bg);min-height:100vh}
+    .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+    .wrap{max-width:1180px;margin:0 auto;padding:26px 18px 80px}
+    header.top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;margin-bottom:18px}
+    .brand{display:flex;align-items:center;gap:13px}
+    .logo{width:46px;height:46px;border-radius:13px;background:var(--grad);display:grid;place-items:center;font-size:24px;box-shadow:0 8px 24px rgba(110,168,254,.35)}
+    .brand h1{font-size:1.35rem;font-weight:900}
+    .brand .tag{color:var(--muted);font-size:.8rem;font-weight:500}
+    .period .chip{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--brd);padding:8px 13px;border-radius:999px;font-size:.8rem;font-weight:600}
+    .period small{display:block;color:var(--dim);font-size:.72rem;margin-top:5px;text-align:right}
 
-    /* Header */
-    header.top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
-    .brand { display: flex; align-items: center; gap: 14px; }
-    .logo { width: 46px; height: 46px; border-radius: 13px; background: var(--grad);
-      display: grid; place-items: center; font-size: 24px; box-shadow: 0 8px 24px rgba(110,168,254,.35); }
-    .brand h1 { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.03em; }
-    .brand .tag { color: var(--muted); font-size: .82rem; font-weight: 500; }
-    .period { text-align: right; }
-    .period .chip { display: inline-flex; align-items: center; gap: 7px; background: var(--card);
-      border: 1px solid var(--card-brd); padding: 8px 14px; border-radius: 999px; font-size: .82rem; font-weight: 500; }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 2s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-    .period small { display: block; color: var(--dim); font-size: .72rem; margin-top: 6px; }
+    .fresh{border-radius:13px;padding:12px 16px;font-size:.92rem;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:9px}
+    .fresh-ok{background:rgba(52,211,153,.12);border:1px solid rgba(52,211,153,.4);color:#6ee7b7}
+    .fresh-stale{background:rgba(248,113,113,.16);border:1px solid rgba(248,113,113,.55);color:#fca5a5;animation:blink 1.6s infinite}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.55}}
 
-    .note { background: linear-gradient(90deg, rgba(251,191,36,.12), transparent); border: 1px solid rgba(251,191,36,.28);
-      color: #f5d58a; border-radius: 14px; padding: 12px 18px; font-size: .85rem; margin-bottom: 24px; }
-    .fresh { border-radius: 14px; padding: 14px 18px; font-size: .95rem; font-weight: 600; margin-bottom: 16px;
-      display: flex; align-items: center; gap: 10px; }
-    .fresh-ok { background: rgba(52,211,153,.12); border: 1px solid rgba(52,211,153,.4); color: #6ee7b7; }
-    .fresh-stale { background: rgba(248,113,113,.16); border: 1px solid rgba(248,113,113,.55); color: #fca5a5;
-      animation: blink 1.6s ease-in-out infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.6} }
+    /* Insights */
+    .insights{display:grid;gap:10px;margin-bottom:20px}
+    .ins{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--brd);border-left-width:4px;border-radius:12px;padding:13px 16px;font-size:.98rem;font-weight:600}
+    .ins .ico{font-size:1.3rem;line-height:1}
+    .ins b{font-weight:900}
+    .ins.red{border-left-color:var(--red)} .ins.amber{border-left-color:var(--amber)}
+    .ins.green{border-left-color:var(--green)} .ins.blue{border-left-color:var(--blue)}
 
-    /* KPI cards */
-    .kpis { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 22px; }
-    @media (max-width: 880px) { .kpis { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 520px) { .kpis { grid-template-columns: 1fr; } }
-    .kpi { position: relative; background: var(--card); backdrop-filter: blur(14px);
-      border: 1px solid var(--card-brd); border-radius: 18px; padding: 20px 22px; overflow: hidden;
-      transition: transform .2s ease, border-color .2s ease; }
-    .kpi:hover { transform: translateY(-3px); border-color: rgba(110,168,254,.4); }
-    .kpi .k-label { color: var(--muted); font-size: .76rem; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; display: flex; align-items: center; gap: 7px; }
-    .kpi .k-val { font-size: 1.7rem; font-weight: 800; margin-top: 10px; letter-spacing: -0.03em; }
-    .kpi.hero { background: linear-gradient(135deg, rgba(110,168,254,.16), rgba(139,92,246,.10)); border-color: rgba(110,168,254,.3); }
-    .kpi.hero .k-val { font-size: 2.5rem; background: var(--grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
-    .kpi .k-sub { color: var(--dim); font-size: .78rem; margin-top: 6px; }
-    .kpi .spark { position: absolute; right: -6px; bottom: -6px; font-size: 60px; opacity: .06; }
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+    @media(max-width:820px){.kpis{grid-template-columns:1fr 1fr}}
+    .kpi{position:relative;background:var(--card);backdrop-filter:blur(14px);border:1px solid var(--brd);border-radius:16px;padding:16px 18px;overflow:hidden}
+    .kpi .l{color:var(--muted);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em}
+    .kpi .v{font-size:1.9rem;font-weight:900;margin-top:6px}
+    .kpi .d{font-size:.82rem;font-weight:700;margin-top:4px}
+    .kpi.hero{background:linear-gradient(135deg,rgba(110,168,254,.18),rgba(139,92,246,.10));border-color:rgba(110,168,254,.3)}
+    .up{color:var(--red)} .down{color:var(--green)} .flat{color:var(--muted)}
 
-    /* Grid of charts */
-    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-    @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
-    .panel { background: var(--card); backdrop-filter: blur(14px); border: 1px solid var(--card-brd);
-      border-radius: 18px; padding: 20px 22px; }
-    .panel h2 { font-size: 1rem; font-weight: 700; margin-bottom: 4px; display: flex; align-items: center; gap: 9px; }
-    .panel .desc { color: var(--muted); font-size: .8rem; margin-bottom: 16px; }
-    .panel.full { grid-column: 1 / -1; }
-    .chart-box { position: relative; height: 260px; }
-    .empty { color: var(--dim); font-size: .85rem; padding: 30px 0; text-align: center; font-style: italic; }
+    .grid{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:16px}
+    @media(max-width:820px){.grid{grid-template-columns:1fr}}
+    .panel{background:var(--card);backdrop-filter:blur(14px);border:1px solid var(--brd);border-radius:16px;padding:18px 20px}
+    .panel h2{font-size:1rem;font-weight:800;margin-bottom:3px;display:flex;align-items:center;gap:8px}
+    .panel .desc{color:var(--muted);font-size:.79rem;margin-bottom:14px}
+    .panel.full{grid-column:1/-1}
+    .box{position:relative;height:300px}
+    .box.sm{height:260px}
 
-    /* Tables */
-    table { width: 100%; border-collapse: collapse; font-size: .87rem; }
-    th, td { text-align: left; padding: 11px 12px; }
-    thead th { color: var(--muted); font-weight: 600; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--card-brd); }
-    tbody tr { border-bottom: 1px solid rgba(255,255,255,.04); transition: background .15s; }
-    tbody tr:hover { background: rgba(110,168,254,.06); }
-    td.num, th.num { text-align: right; }
-    .barcell { position: relative; min-width: 220px; }
-    .barcell .fill { position: absolute; left: 0; top: 50%; transform: translateY(-50%); height: 26px; border-radius: 7px;
-      background: linear-gradient(90deg, rgba(110,168,254,.35), rgba(139,92,246,.18)); z-index: 0; }
-    .barcell .lbl { position: relative; z-index: 1; }
-    .tag-svc { display: inline-block; font-size: .7rem; padding: 2px 8px; border-radius: 6px; background: rgba(110,168,254,.14); color: var(--accent); font-weight: 600; }
-    .pill { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
-    .pill.red { color: var(--red); } .pill.green { color: var(--green); } .pill.amber { color: var(--amber); }
-
-    footer { color: var(--dim); font-size: .78rem; text-align: center; margin-top: 36px; line-height: 1.7; }
-    footer a { color: var(--accent); text-decoration: none; }
-    .skl { color: var(--dim); }
+    table{width:100%;border-collapse:collapse;font-size:.9rem}
+    th,td{padding:11px 12px;text-align:left}
+    thead th{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--brd)}
+    tbody tr{border-bottom:1px solid rgba(255,255,255,.04)}
+    tbody tr:hover{background:rgba(110,168,254,.06)}
+    td.num,th.num{text-align:right}
+    .dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:middle}
+    .badge{font-weight:900;padding:3px 9px;border-radius:7px;font-size:.85rem}
+    .badge.red{background:rgba(248,113,113,.16);color:#fca5a5}
+    .badge.amber{background:rgba(251,191,36,.16);color:#fcd34d}
+    .badge.green{background:rgba(52,211,153,.16);color:#6ee7b7}
+    .live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 10px var(--green);animation:blink 2s infinite}
+    footer{color:var(--dim);font-size:.78rem;text-align:center;margin-top:30px;line-height:1.7}
+    footer a{color:var(--blue);text-decoration:none}
   </style>
 </head>
 <body>
@@ -104,240 +81,191 @@
     <header class="top">
       <div class="brand">
         <div class="logo">📡</div>
-        <div>
-          <h1>Cloud Cost Radar</h1>
-          <div class="tag">Cada centavo do Google Cloud, rastreado em tempo real</div>
-        </div>
+        <div><h1>Cloud Cost Radar</h1><div class="tag">Custo do Google Cloud por MCP — leitura imediata</div></div>
       </div>
       <div class="period">
-        <span class="chip"><span class="dot"></span> <span id="period">carregando…</span></span>
+        <span class="chip"><span class="live"></span> <span id="period">carregando…</span></span>
         <small id="genAt"></small>
       </div>
     </header>
 
-    <div id="freshness" style="display:none"></div>
-    <div id="fonte" class="note" style="display:none"></div>
+    <div id="freshness" class="fresh" style="display:none"></div>
+
+    <div class="insights" id="insights"></div>
 
     <div class="kpis">
-      <div class="kpi hero">
-        <div class="k-label">💰 Total no período</div>
-        <div class="k-val mono" id="kTotal">—</div>
-        <div class="k-sub" id="kTotalSub"></div>
-        <div class="spark">💸</div>
-      </div>
-      <div class="kpi">
-        <div class="k-label">🏷️ Maior serviço</div>
-        <div class="k-val" id="kService" style="font-size:1.2rem">—</div>
-        <div class="k-sub" id="kServiceVal"></div>
-      </div>
-      <div class="kpi">
-        <div class="k-label">🎯 Maior origem</div>
-        <div class="k-val" id="kSku" style="font-size:.98rem">—</div>
-        <div class="k-sub" id="kSkuVal"></div>
-      </div>
-      <div class="kpi">
-        <div class="k-label">🤖 Custo médio / chamada</div>
-        <div class="k-val mono" id="kPerCall">—</div>
-        <div class="k-sub" id="kCalls"></div>
-      </div>
+      <div class="kpi hero"><div class="l">💸 Gasto de hoje</div><div class="v mono" id="kHoje">—</div><div class="d" id="kHojeVs"></div></div>
+      <div class="kpi"><div class="l">📆 Ontem</div><div class="v mono" id="kOntem">—</div><div class="d" id="kOntemDia"></div></div>
+      <div class="kpi"><div class="l">📊 Total no período</div><div class="v mono" id="kTotal">—</div><div class="d" id="kTotalDias"></div></div>
+      <div class="kpi"><div class="l">📈 Projeção do mês</div><div class="v mono" id="kProj">—</div><div class="d">estimativa 30 dias</div></div>
     </div>
 
     <div class="grid">
       <div class="panel">
-        <h2>🍩 Distribuição por serviço</h2>
-        <div class="desc">Qual produto do GCP pesa mais na fatura</div>
-        <div class="chart-box"><canvas id="serviceChart"></canvas></div>
-      </div>
-      <div class="panel" id="skuPanel">
-        <h2>📊 Top origens (SKU)</h2>
-        <div class="desc">Os itens exatos que mais cobram</div>
-        <div class="chart-box"><canvas id="skuChart"></canvas></div>
+        <h2>📈 Custo por dia <span style="color:var(--muted);font-weight:600;font-size:.8rem">(por MCP)</span></h2>
+        <div class="desc">Barras empilhadas com o total de cada dia em cima. Spike = barra alta.</div>
+        <div class="box"><canvas id="dayChart"></canvas></div>
       </div>
       <div class="panel">
-        <h2>📈 Custo por dia</h2>
-        <div class="desc">Tendência diária do gasto</div>
-        <div class="chart-box"><canvas id="dayChart"></canvas><div class="empty" id="dayEmpty" style="display:none">Aguardando o BigQuery Billing Export popular o detalhe diário…</div></div>
-      </div>
-      <div class="panel">
-        <h2>📞 Chamadas por dia (por MCP)</h2>
-        <div class="desc">Volume de uso de cada MCP — origem: logs do Cloud Run</div>
-        <div class="chart-box"><canvas id="callsChart"></canvas><div class="empty" id="callsEmpty" style="display:none">Aguardando os logs de requisição… aparece assim que você usar os MCPs.</div></div>
+        <h2>🍩 Quem gastou mais</h2>
+        <div class="desc">Participação de cada MCP no período</div>
+        <div class="box"><canvas id="mcpDonut"></canvas></div>
       </div>
     </div>
 
     <div class="panel full" style="margin-bottom:16px">
-      <h2>🤖 Uso por MCP — chamadas e custo por chamada</h2>
-      <div class="desc">Cada chamada de ferramenta ≈ 1 requisição. Multiplique o custo unitário pelo nº de chamadas de uma interação.</div>
-      <table id="mcpTable"><thead><tr>
-        <th>MCP</th><th class="num">Chamadas</th><th class="num">CPU (s)</th><th class="num">Custo total</th><th class="num">Custo / chamada</th>
+      <h2>🏆 Ranking por MCP</h2>
+      <div class="desc">Tudo que você precisa pra concluir de bate-pronto: quanto cada MCP gastou hoje, no período, e o custo por chamada.</div>
+      <table id="rank"><thead><tr>
+        <th>MCP</th><th class="num">Hoje</th><th class="num">Chamadas hoje</th><th class="num">Total período</th><th class="num">% do total</th><th class="num">Custo / chamada</th>
       </tr></thead><tbody></tbody></table>
     </div>
 
-    <div class="panel full" id="skuFullPanel">
-      <h2>🔎 Origem de cada centavo — por SKU</h2>
-      <div class="desc">O item exato cobrado dentro de cada serviço. É aqui que você vê de onde vem cada R$.</div>
-      <table id="skuTable"><thead><tr>
-        <th>Serviço</th><th class="barcell">SKU (item cobrado)</th><th class="num">Uso</th><th class="num">Custo</th>
-      </tr></thead><tbody></tbody></table>
+    <div class="panel full">
+      <h2>📞 Chamadas por dia <span style="color:var(--muted);font-weight:600;font-size:.8rem">(por MCP)</span></h2>
+      <div class="desc">Volume de uso — pra cruzar com o custo</div>
+      <div class="box sm"><canvas id="callsChart"></canvas></div>
     </div>
 
     <footer>
-      Atualizado automaticamente pelo GitHub Actions a partir do BigQuery Billing Export + logs do Cloud Run.<br>
-      <span id="footGen"></span> · <a href="https://github.com/brunotrolo/GoogleCloud_Projects">repositório</a>
+      <span id="footGen"></span> · fonte: <span id="footSrc"></span> · atualiza a cada 3h ·
+      <a href="https://github.com/brunotrolo/GoogleCloud_Projects">repo</a>
     </footer>
   </div>
 
   <script>
-    Chart.defaults.color = "#8a97a8";
-    Chart.defaults.font.family = "'Inter', sans-serif";
-    Chart.defaults.font.size = 12;
-    const PALETTE = ["#6ea8fe", "#8b5cf6", "#34d399", "#fbbf24", "#f472b6", "#f87171", "#22d3ee", "#a3e635"];
-    const cf = (n, cur, d) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: cur || "BRL", minimumFractionDigits: d ?? 2, maximumFractionDigits: d ?? 2 }).format(n || 0);
-    const nf = (n) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(n || 0);
+    Chart.register(ChartDataLabels);
+    Chart.defaults.color="#8a97a8";
+    Chart.defaults.font.family="'Inter',sans-serif";
+    Chart.defaults.plugins.datalabels.display=false; // liga por gráfico
+    const COLORS={"oplab-mcp-server":"#6ea8fe","oplab-sheets-mcp":"#f472b6"};
+    const palette=["#6ea8fe","#f472b6","#34d399","#fbbf24","#8b5cf6","#22d3ee"];
+    const colorOf=(m,i)=>COLORS[m]||palette[i%palette.length];
+    const BRL=(n,d=2)=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",minimumFractionDigits:d,maximumFractionDigits:d}).format(n||0);
+    const NF=n=>new Intl.NumberFormat("pt-BR").format(Math.round(n||0));
+    const nice=m=>({"oplab-mcp-server":"OpLab","oplab-sheets-mcp":"Sheets"}[m]||m);
 
-    fetch("./data/costs.json?cb=" + Date.now())
-      .then(r => r.json()).then(render)
-      .catch(e => document.getElementById("period").textContent = "erro ao carregar: " + e);
+    fetch("./data/costs.json?cb="+Date.now()).then(r=>r.json()).then(render)
+      .catch(e=>document.getElementById("period").textContent="erro: "+e);
 
-    function render(d) {
-      const cur = d.currency || "BRL";
-      document.getElementById("period").textContent = `${d.period.start} → ${d.period.end}`;
-      document.getElementById("genAt").textContent = "atualizado: " + (d.generated_at || "—");
-      document.getElementById("footGen").textContent = "Gerado em " + (d.generated_at || "—");
+    function render(d){
+      document.getElementById("period").textContent=`${d.period.start} → ${d.period.end}`;
+      document.getElementById("genAt").textContent="atualizado: "+(d.generated_at||"—");
+      document.getElementById("footGen").textContent="Gerado em "+(d.generated_at||"—");
+      document.getElementById("footSrc").textContent=d.data_source==="monitoring"?"Cloud Monitoring (estimado)":(d.fonte||"—");
 
-      if (d.fonte) { const f = document.getElementById("fonte"); f.style.display = "block"; f.textContent = "ℹ️ " + d.fonte; }
+      // ---------- frescor ----------
+      const fb=document.getElementById("freshness"),gen=parseGen(d.generated_at);
+      fb.style.display="flex";
+      if(!gen){fb.className="fresh fresh-stale";fb.innerHTML="🔴 Dados de EXEMPLO — a coleta automática ainda não rodou.";}
+      else{const h=(Date.now()-gen.getTime())/3.6e6;
+        if(h<=12){fb.className="fresh fresh-ok";fb.innerHTML=`🟢 Dados atualizados há ${age(h)} · em tempo quase real`;}
+        else{fb.className="fresh fresh-stale";fb.innerHTML=`🔴 DADOS DESATUALIZADOS há ${age(h)} — não confie nos valores até atualizar`;}}
 
-      // ---- Aviso de frescor dos dados ----
-      const fb = document.getElementById("freshness");
-      const gen = parseGen(d.generated_at);
-      fb.style.display = "flex";
-      fb.className = "fresh";
-      if (!gen) {
-        fb.classList.add("fresh-stale");
-        fb.innerHTML = "🔴 ATENÇÃO: estes são dados de EXEMPLO — a coleta automática ainda não rodou.";
-      } else {
-        const horas = (Date.now() - gen.getTime()) / 3.6e6;
-        if (horas <= 12) {
-          fb.classList.add("fresh-ok");
-          fb.innerHTML = `🟢 Dados atualizados há ${fmtAge(horas)} (fonte em tempo quase real).`;
-        } else {
-          fb.classList.add("fresh-stale");
-          fb.innerHTML = `🔴 DADOS DESATUALIZADOS — última atualização há ${fmtAge(horas)}. NÃO confie nos valores até atualizar.`;
-        }
-      }
+      // ---------- preparar dados ----------
+      const days=[...new Set((d.by_day||[]).map(x=>x.dia))].sort();
+      const mcps=(d.by_mcp||[]).map(m=>m.mcp);
+      const mcpDay={}; (d.by_mcp_day||[]).forEach(r=>{mcpDay[r.mcp+"|"+r.dia]={custo:r.custo,chamadas:r.chamadas};});
+      const totalByDay=Object.fromEntries((d.by_day||[]).map(x=>[x.dia,x.custo_liquido]));
+      const today=d.last_data_day||days[days.length-1];
+      const yday=days[days.indexOf(today)-1];
+      const tHoje=totalByDay[today]||0, tOntem=yday?(totalByDay[yday]||0):0;
+      const dias=days.length||1, total=d.total||0, proj=total/dias*30;
 
-      // KPIs
-      document.getElementById("kTotal").textContent = cf(d.total, cur);
-      const nDays = Math.max(1, (new Date(d.period.end) - new Date(d.period.start)) / 86400000 + 1);
-      document.getElementById("kTotalSub").textContent = "≈ " + cf(d.total / nDays, cur) + " / dia · projeção 30d " + cf(d.total / nDays * 30, cur);
+      // custo de hoje por MCP
+      const hojePorMcp=mcps.map((m,i)=>({mcp:m,custo:(mcpDay[m+"|"+today]||{}).custo||0,chamadas:(mcpDay[m+"|"+today]||{}).chamadas||0,cor:colorOf(m,i)}))
+                            .sort((a,b)=>b.custo-a.custo);
+      const topPeriodo=[...(d.by_mcp||[])].sort((a,b)=>b.custo_liquido-a.custo_liquido)[0];
+      const topHoje=hojePorMcp[0];
 
-      if (d.by_service && d.by_service.length) {
-        document.getElementById("kService").textContent = d.by_service[0].servico;
-        document.getElementById("kServiceVal").textContent = cf(d.by_service[0].custo_liquido, cur);
-      }
-      if (d.by_sku && d.by_sku.length) {
-        document.getElementById("kSku").textContent = shorten(d.by_sku[0].sku, 42);
-        document.getElementById("kSkuVal").textContent = cf(d.by_sku[0].custo_liquido, cur);
-      }
-      if (d.by_mcp && d.by_mcp.length) {
-        const totReq = d.by_mcp.reduce((s, r) => s + (r.requisicoes || 0), 0);
-        const totCost = d.by_mcp.reduce((s, r) => s + (r.custo_liquido || 0), 0);
-        document.getElementById("kPerCall").textContent = totReq ? cf(totCost / totReq, cur, 4) : "—";
-        document.getElementById("kCalls").textContent = nf(totReq) + " chamadas";
-      }
+      // ---------- KPIs ----------
+      document.getElementById("kHoje").textContent=BRL(tHoje);
+      const delta=tOntem>0?((tHoje-tOntem)/tOntem*100):(tHoje>0?100:0);
+      const dEl=document.getElementById("kHojeVs");
+      if(tOntem>0){const up=tHoje>=tOntem;dEl.innerHTML=`${up?"▲":"▼"} ${Math.abs(delta).toFixed(0)}% vs ontem`;dEl.className="d "+(up?"up":"down");}
+      else dEl.textContent=`dia ${fmtDia(today)}`;
+      document.getElementById("kOntem").textContent=BRL(tOntem);
+      document.getElementById("kOntemDia").textContent=yday?`dia ${fmtDia(yday)}`:"";
+      document.getElementById("kTotal").textContent=BRL(total);
+      document.getElementById("kTotalDias").textContent=`${dias} dias`;
+      document.getElementById("kProj").textContent=BRL(proj);
 
-      // Donut serviço
-      const svc = (d.by_service || []).filter(s => s.custo_liquido > 0);
-      if (svc.length) doughnut("serviceChart", svc.map(s => s.servico), svc.map(s => s.custo_liquido), cur);
+      // ---------- insights (conclusões automáticas) ----------
+      const ins=[];
+      const pct=topPeriodo?Math.round(topPeriodo.custo_liquido/total*100):0;
+      if(topHoje&&topHoje.custo>0)
+        ins.push({c:"blue",i:"📅",h:`Hoje (${fmtDia(today)}) o que mais gastou foi <b>${nice(topHoje.mcp)}</b>: <b>${BRL(topHoje.custo)}</b> em <b>${NF(topHoje.chamadas)}</b> chamadas.`});
+      else
+        ins.push({c:"green",i:"📅",h:`Hoje (${fmtDia(today)}) o gasto está baixo: <b>${BRL(tHoje)}</b> até agora.`});
+      if(topPeriodo)
+        ins.push({c:pct>=50?"amber":"blue",i:"🥇",h:`No período, o vilão é <b>${nice(topPeriodo.mcp)}</b> — <b>${BRL(topPeriodo.custo_liquido)}</b> (<b>${pct}%</b> do total).`});
+      const trend=tOntem>0?(tHoje>=tOntem?"subiu":"caiu"):null;
+      if(trend) ins.push({c:tHoje>=tOntem?"red":"green",i:tHoje>=tOntem?"⚠️":"✅",
+        h:`O gasto de hoje <b>${trend} ${Math.abs(delta).toFixed(0)}%</b> em relação a ontem (${BRL(tOntem)} → ${BRL(tHoje)}).`});
+      ins.push({c:proj>50?"amber":"green",i:"📈",h:`Mantendo o ritmo, o mês fecha em ~<b>${BRL(proj)}</b>.`});
+      document.getElementById("insights").innerHTML=ins.map(x=>`<div class="ins ${x.c}"><span class="ico">${x.i}</span><span>${x.h}</span></div>`).join("");
 
-      // Barras horizontais SKU (top 7) — esconde seções se não houver SKU (fonte Monitoring)
-      const sku = (d.by_sku || []).slice(0, 7);
-      const hasSku = sku.length > 0;
-      document.getElementById("skuPanel").style.display = hasSku ? "" : "none";
-      document.getElementById("skuFullPanel").style.display = hasSku ? "" : "none";
-      if (hasSku) hbar("skuChart", sku.map(s => shorten(s.sku, 34)), sku.map(s => s.custo_liquido), cur);
+      // ---------- gráfico: custo por dia (empilhado + total em cima) ----------
+      const dsDay=mcps.map((m,i)=>({label:nice(m),data:days.map(dia=>(mcpDay[m+"|"+dia]||{}).custo||0),
+        backgroundColor:colorOf(m,i),borderRadius:5,stack:"s",
+        datalabels:{display:ctx=>ctx.dataset.data[ctx.dataIndex]>=Math.max(...days.map(x=>totalByDay[x]))*0.06,
+          color:"#0a0e17",font:{weight:800,size:10},formatter:v=>v>0?BRL(v,2).replace("R$ ",""):""}}));
+      new Chart(byId("dayChart"),{type:"bar",data:{labels:days.map(fmtDia),datasets:dsDay},
+        options:{maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:8}},
+          datalabels:{},tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${BRL(c.parsed.y)}`,
+            footer:items=>{const t=items.reduce((s,i)=>s+i.parsed.y,0);return "Total: "+BRL(t);}}}},
+          scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:"rgba(255,255,255,.05)"},ticks:{callback:v=>"R$"+v}}}},
+        plugins:[totalOnTop(days,totalByDay)]});
 
-      // Área custo por dia
-      if (d.by_day && d.by_day.length) area("dayChart", d.by_day.map(x => x.dia), d.by_day.map(x => x.custo_liquido), cur);
-      else showEmpty("dayChart", "dayEmpty");
+      // ---------- donut por MCP ----------
+      const dm=[...(d.by_mcp||[])].sort((a,b)=>b.custo_liquido-a.custo_liquido);
+      new Chart(byId("mcpDonut"),{type:"doughnut",
+        data:{labels:dm.map(m=>nice(m.mcp)),datasets:[{data:dm.map(m=>m.custo_liquido),
+          backgroundColor:dm.map((m,i)=>colorOf(m.mcp,i)),borderColor:"#0a0e17",borderWidth:3,hoverOffset:8}]},
+        options:{maintainAspectRatio:false,cutout:"58%",
+          plugins:{legend:{position:"bottom",labels:{usePointStyle:true,boxWidth:8,padding:14}},
+            datalabels:{display:true,color:"#fff",font:{weight:900,size:13},
+              formatter:(v,c)=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return BRL(v,0)+"\n"+Math.round(v/t*100)+"%";},textAlign:"center"},
+            tooltip:{callbacks:{label:c=>" "+BRL(c.parsed)}}}}});
 
-      // Barras empilhadas chamadas
-      if (d.by_calls && d.by_calls.length) stackedCalls("callsChart", d.by_calls);
-      else showEmpty("callsChart", "callsEmpty");
+      // ---------- ranking ----------
+      const tb=document.querySelector("#rank tbody");
+      tb.innerHTML=dm.map((m,i)=>{const hoje=(mcpDay[m.mcp+"|"+today]||{});const p=Math.round(m.custo_liquido/total*100);
+        const bcls=p>=50?"red":p>=25?"amber":"green";
+        return `<tr>
+          <td><span class="dot" style="background:${colorOf(m.mcp,i)}"></span><b>${nice(m.mcp)}</b></td>
+          <td class="num mono"><b>${BRL(hoje.custo||0)}</b></td>
+          <td class="num mono">${NF(hoje.chamadas||0)}</td>
+          <td class="num mono">${BRL(m.custo_liquido)}</td>
+          <td class="num"><span class="badge ${bcls}">${p}%</span></td>
+          <td class="num mono">${BRL(m.custo_por_requisicao,4)}</td></tr>`;}).join("");
 
-      // Tabela MCP
-      fillTable("mcpTable", (d.by_mcp || []), r => `
-        <td><span class="tag-svc">${shorten(r.mcp, 48)}</span></td>
-        <td class="num mono">${nf(r.requisicoes)}</td>
-        <td class="num mono">${nf(r.cpu_segundos)}</td>
-        <td class="num mono">${cf(r.custo_liquido, cur)}</td>
-        <td class="num pill amber">${cf(r.custo_por_requisicao, cur, 4)}</td>`);
-
-      // Tabela SKU com barras
-      const maxSku = Math.max(...(d.by_sku || []).map(s => s.custo_liquido), 0.0001);
-      fillTable("skuTable", (d.by_sku || []), r => `
-        <td><span class="tag-svc">${r.servico || ""}</span></td>
-        <td class="barcell"><div class="fill" style="width:${Math.max(2, r.custo_liquido / maxSku * 100)}%"></div><span class="lbl">${r.sku || ""}</span></td>
-        <td class="num mono skl">${nf(r.quantidade)} ${r.unidade || ""}</td>
-        <td class="num pill ${r.custo_liquido >= maxSku * 0.5 ? 'red' : ''}">${cf(r.custo_liquido, cur)}</td>`);
+      // ---------- chamadas por dia ----------
+      const calls={}; (d.by_calls||[]).forEach(r=>calls[r.mcp+"|"+r.dia]=r.chamadas);
+      const dsCalls=mcps.map((m,i)=>({label:nice(m),data:days.map(dia=>calls[m+"|"+dia]||0),
+        backgroundColor:colorOf(m,i),borderRadius:5,stack:"c",
+        datalabels:{display:false}}));
+      new Chart(byId("callsChart"),{type:"bar",data:{labels:days.map(fmtDia),datasets:dsCalls},
+        options:{maintainAspectRatio:false,plugins:{legend:{labels:{usePointStyle:true,boxWidth:8}},datalabels:{display:false},
+          tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${NF(c.parsed.y)} chamadas`}}},
+          scales:{x:{stacked:true,grid:{display:false}},y:{stacked:true,grid:{color:"rgba(255,255,255,.05)"}}}}});
     }
 
-    function parseGen(s) {
-      if (!s) return null;
-      const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
-      if (!m) return null;
-      // tratamos como UTC; se não houver hora, assume meia-noite (fica "velho" rápido — proposital)
-      return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)));
+    // plugin: desenha o TOTAL de cada barra empilhada em cima
+    function totalOnTop(days,totalByDay){
+      return {id:"totalOnTop",afterDatasetsDraw(chart){
+        const{ctx,scales:{x,y}}=chart;ctx.save();
+        ctx.font="800 11px Inter";ctx.fillStyle="#eef2f8";ctx.textAlign="center";
+        days.forEach((dia,idx)=>{const t=totalByDay[dia]||0;if(t<=0)return;
+          const xp=x.getPixelForValue(idx);const yp=y.getPixelForValue(t)-6;
+          ctx.fillText(BRL(t,2).replace("R$ ","R$"),xp,yp);});
+        ctx.restore();}};
     }
-    function fmtAge(h) {
-      if (h < 1) return Math.round(h * 60) + " min";
-      if (h < 48) return Math.round(h) + "h";
-      return Math.round(h / 24) + " dias";
-    }
-    function shorten(s, n) { s = s || ""; return s.length > n ? s.slice(0, n - 1) + "…" : s; }
-    function showEmpty(canvasId, emptyId) { document.getElementById(canvasId).style.display = "none"; document.getElementById(emptyId).style.display = "block"; }
-    function fillTable(id, rows, html) {
-      const tb = document.querySelector("#" + id + " tbody");
-      tb.innerHTML = rows.length ? rows.map(r => "<tr>" + html(r) + "</tr>").join("") : `<tr><td colspan="9" class="empty">Sem dados ainda.</td></tr>`;
-    }
-    const gridCfg = { grid: { color: "rgba(255,255,255,.05)" }, border: { display: false } };
-
-    function doughnut(id, labels, data, cur) {
-      new Chart(document.getElementById(id), {
-        type: "doughnut",
-        data: { labels, datasets: [{ data, backgroundColor: PALETTE, borderColor: "#0a0e17", borderWidth: 3, hoverOffset: 8 }] },
-        options: { cutout: "62%", plugins: { legend: { position: "right", labels: { boxWidth: 10, boxHeight: 10, padding: 12, font: { size: 11 } } },
-          tooltip: { callbacks: { label: c => " " + c.label + ": " + cf(c.parsed, cur) } } } }
-      });
-    }
-    function hbar(id, labels, data, cur) {
-      new Chart(document.getElementById(id), {
-        type: "bar",
-        data: { labels, datasets: [{ data, backgroundColor: labels.map((_, i) => PALETTE[i % PALETTE.length]), borderRadius: 6, barThickness: 18 }] },
-        options: { indexAxis: "y", plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => " " + cf(c.parsed.x, cur) } } },
-          scales: { x: gridCfg, y: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 10.5 } } } } }
-      });
-    }
-    function area(id, labels, data, cur) {
-      const ctx = document.getElementById(id).getContext("2d");
-      const g = ctx.createLinearGradient(0, 0, 0, 260);
-      g.addColorStop(0, "rgba(110,168,254,.45)"); g.addColorStop(1, "rgba(110,168,254,0)");
-      new Chart(ctx, {
-        type: "line",
-        data: { labels, datasets: [{ data, fill: true, backgroundColor: g, borderColor: "#6ea8fe", borderWidth: 2.5, tension: .35, pointRadius: 3, pointBackgroundColor: "#6ea8fe" }] },
-        options: { plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => " " + cf(c.parsed.y, cur) } } },
-          scales: { x: { grid: { display: false }, border: { display: false } }, y: gridCfg } }
-      });
-    }
-    function stackedCalls(id, rows) {
-      const dias = [...new Set(rows.map(x => x.dia))].sort();
-      const mcps = [...new Set(rows.map(x => x.mcp))];
-      const ds = mcps.map((m, i) => ({ label: shorten(m, 22), data: dias.map(dia => { const h = rows.find(x => x.dia === dia && x.mcp === m); return h ? h.chamadas : 0; }),
-        backgroundColor: PALETTE[i % PALETTE.length], borderRadius: 5, stack: "s" }));
-      new Chart(document.getElementById(id), { type: "bar", data: { labels: dias, datasets: ds },
-        options: { plugins: { legend: { labels: { boxWidth: 10, font: { size: 11 } } } },
-          scales: { x: { stacked: true, grid: { display: false }, border: { display: false } }, y: { stacked: true, ...gridCfg } } } });
-    }
+    function byId(id){return document.getElementById(id);}
+    function parseGen(s){if(!s)return null;const m=String(s).match(/(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+      return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0))):null;}
+    function age(h){return h<1?Math.round(h*60)+" min":h<48?Math.round(h)+"h":Math.round(h/24)+" dias";}
+    function fmtDia(s){const m=String(s).match(/\d{4}-(\d{2})-(\d{2})/);return m?`${m[2]}/${m[1]}`:s;}
   </script>
 </body>
 </html>
