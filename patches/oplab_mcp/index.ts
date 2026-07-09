@@ -8,6 +8,8 @@ import { getBacktestProtocolo2, runQuantBacktest } from "./utils/backtest_engine
 import { getSmartMoneyTracker } from "./utils/smart_money_tracker.js";
 import { getOportunidadesMensais } from "./utils/opportunity_engine.js";
 import { getAnaliseManejo } from "./utils/manejo_engine.js";
+import { getAnaliseEstrutura } from "./utils/estrutura_engine.js";
+import { getBacktestEstrutural } from "./utils/backtest_estrutural_engine.js";
 
 // ---------------------------------------------------------------------------
 // OpLab API client
@@ -466,7 +468,7 @@ const TOOL_REGISTRY: ToolDef[] = [
   {
     name: "get_analise_manejo",
     description:
-      "Analisar manejo/rolagem de uma posição ATM/ITM (Short Put a seco ou Bull Put Spread) com o motor de 6 módulos: (1) estado atual da estrutura — gregas por perna, delta líquido, P&L, breakeven e custo de zerar hoje; (2) gerador de candidatos — calendário (mesmo strike), defensiva (delta alvo), largura nova da trava e 'manter proteção atual' quando o vencimento dela cobre o novo ciclo; (3) precificação executável — recompra a ASK, venda a BID, crédito líquido, risco máximo; (4) validação estatística — volatilidade REALIZADA + Monte Carlo (GBM, seed fixa) com P(exercício) e P(touch) reais, cross-check analítico e divergência vs delta B-S; (5) filtros de exclusão com motivo exato — crédito<=0, delta não reduz, |delta|>0,70, tendência M9/M21 contra, bid/spread/volume, IV Rank; (6) score = ROIC × theta/dia × (1−prob_MC) e decisão final ROLAR (com plano de execução) ou ASSUMIR/ENCERRAR quantificados.",
+      "Analisar manejo/rolagem de uma posição ATM/ITM (Short Put a seco ou Bull Put Spread) com o motor de 6 módulos: (1) estado atual da estrutura — gregas por perna, delta líquido, P&L, breakeven e custo de zerar hoje; (2) gerador de candidatos — calendário (mesmo strike), defensiva (delta alvo), largura nova da trava e 'manter proteção atual' quando o vencimento dela cobre o novo ciclo; (3) precificação executável — recompra a ASK, venda a BID, crédito líquido, risco máximo; (4) validação estatística — volatilidade REALIZADA + Monte Carlo (GBM, seed fixa) com P(exercício) e P(touch) reais, cross-check analítico e divergência vs delta B-S; (5) filtros de exclusão com motivo exato — crédito<=0, delta não reduz, |delta|>0,70, tendência M9/M21 contra, bid/spread/volume, IV Rank; (6) score = ROIC × theta/dia × (1−prob_MC) e decisão final ROLAR (com plano de execução) ou ASSUMIR/ENCERRAR quantificados. MODOS EXTRAS: 'posicoes' (Ajuste 11 — desmontagem agregada de várias posições); 'pernas_desmontar' (Ajuste 12/13 — desmontagem EXATA por preços informados + dimensionamento dos contratos da trava nova pelo alvo). Toda saída traz um 'snapshot' com timestamp (Ajuste 14) e alerta de timing intradiário quando o ativo cai forte no dia (Ajuste 15).",
     properties: {
       ticker:         { type: "string",  description: "Ativo subjacente (ex: VALE3)" },
       legs:           { type: "array",   description: "Pernas atuais da estrutura: [{option_ticker: 'VALES790', side: 'VENDA'|'COMPRA', quantity: 500, entry_price: 1.79}]", items: { type: "object" } },
@@ -481,9 +483,38 @@ const TOOL_REGISTRY: ToolDef[] = [
       mc_paths:       { type: "integer", description: "Trajetórias do Monte Carlo, 2000-50000 (padrão: 10000)" },
       incluir_semanais:     { type: "boolean", description: "Incluir vencimentos semanais nos candidatos (padrão: false — só mensais/3ª sexta)" },
       incluir_troca_ticker: { type: "boolean", description: "Avaliar TROCA DE TICKER quando o ativo falha ≥2/3 critérios (delta<-0,50, M9/M21<1, IV Rank<50). Padrão: true" },
+      posicoes:             { type: "array",   description: "Ajuste 11 — desmontagem AGREGADA: lista de posições [{ticker, legs:[...]}]. Se informado, retorna custo de desmontagem somado + travas que recuperam o total. Ignora ticker/legs de nível superior." },
+      pernas_desmontar:     { type: "array",   description: "Ajuste 12/13 — modo DESMONTAGEM EXATA. Pernas EXATAS a desmontar com o preço atual informado pelo operador: [{option_ticker, side: 'VENDA'|'COMPRA', strike, quantity, preco_atual}]. O motor calcula o custo de desmontagem SÓ sobre estas pernas (ação inversa, nunca infere) e usa |custo| como ALVO para dimensionar quantos contratos vender na trava nova (mesmo ticker + troca). Se faltar preco_atual em alguma perna, retorna 'DADOS INCOMPLETOS'." },
+      lote:                 { type: "integer", description: "Ajuste 13 — lote para dimensionar contratos da trava nova (padrão: 1000)." },
+      queda_max_pct:        { type: "number",  description: "Ajuste 15 — limite de variação intradiária do subjacente que dispara o alerta de timing na venda de PUT (padrão: -2, i.e. queda ≥2% no dia)." },
     },
-    required: ["ticker", "legs"],
+    required: ["ticker"],
     handler: (client, a) => getAnaliseManejo(client, a),
+  },
+  {
+    name: "get_analise_estrutura",
+    description:
+      "Analisar a ESTRUTURA de preço de um ticker a partir do OHLC histórico e classificar a FASE atual (ALTA / BAIXA / LATERAL / TRANSIÇÃO), antecipando viradas que o M9/M21 confirma tarde. Entrega números crus e determinísticos — NÃO dá sinal de compra/venda nem prevê o futuro, só classificação factual da estrutura. Calcula: swings (últimos 3 topos/fundos, pivôs janela 3), fundos/topos ascendentes, fase por janelas de 15 candles (amplitude<4%=LATERAL, inclinação>3%=ALTA, <-3%=BAIXA), rompimento vs máx/mín de 20 candles (com pct), confirmação por volume (último vs média 20d), flag TRANSIÇÃO (fase anterior lateral + rompimento recente + volume confirma) com direção, e contexto M9/M21 com dias de antecipação da estrutura vs o cruzamento das médias. Mesmas regras do get_analise_manejo: pelo close a qualquer hora, sem gerenciar patrimônio, determinístico.",
+    properties: {
+      symbol:        { type: "string",  description: "Código do ativo (ex: PSSA3). OBRIGATÓRIO." },
+      lookback_days: { type: "integer", description: "Janela de histórico em dias corridos (padrão: 90; mínimo efetivo 30 candles)." },
+    },
+    required: ["symbol"],
+    handler: (client, a) => getAnaliseEstrutura(client, a),
+  },
+  {
+    name: "get_backtest_estrutural",
+    description:
+      "Backtest EMPÍRICO: filtrar entradas pela ESTRUTURA de preço melhora o win rate sobre o baseline? Para cada ticker e cada ciclo mensal, reconstrói o estado estrutural (mesma lógica de get_analise_estrutura) usando SÓ candles até a data de entrada (ZERO look-ahead), simula a venda de PUT/trava com a cadeia de opções histórica real, apura no vencimento e compara COORTES (baseline, apenas_iv, apenas_m9m21, apenas_alta_estrutural, alta_estrutural_e_iv, apenas_transicao, rompimento_com_volume, full_stack) por win rate, P&L médio, desvio-padrão e sharpe simplificado. Veredito: ESTRUTURA_TEM_EDGE (lift ≥5pp e n≥30), ESTRUTURA_SEM_EDGE ou AMOSTRA_INSUFICIENTE. Determinístico. Não é sinal de compra/venda.",
+    properties: {
+      tickers:        { type: "array",   description: "Lista de códigos (ex: [\"VALE3\",\"PSSA3\"]). Se omitido, usa a whitelist padrão de 24 ativos." },
+      lookback_meses: { type: "integer", description: "Janela de histórico em meses (padrão: 24; teto 24)." },
+      dte_alvo:       { type: "integer", description: "DTE da entrada simulada (padrão: 25)." },
+      delta_alvo:     { type: "number",  description: "Delta alvo da PUT vendida (padrão: -0.25)." },
+      use_spread:     { type: "boolean", description: "Simular trava Bull Put Spread (perda limitada) em vez de PUT seca. Padrão: true." },
+    },
+    required: [],
+    handler: (client, a) => getBacktestEstrutural(client, a),
   },
 ];
 
