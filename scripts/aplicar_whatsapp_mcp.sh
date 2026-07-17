@@ -96,12 +96,15 @@ fi
 
 id -u whatsapp-mcp &>/dev/null || useradd --system --home /opt/whatsapp-mcp --shell /usr/sbin/nologin whatsapp-mcp
 
-# O repo é clonado como root e depois tem o dono trocado para whatsapp-mcp; sem esta
-# linha, o `git pull` (rodando como root) falha com "dubious ownership" e o set -e
-# aborta o startup-script ANTES do npm install/restart — deixando o código velho.
-git config --global --add safe.directory /opt/whatsapp-mcp
+# O repo é clonado como root e depois tem o dono trocado para whatsapp-mcp; sem isto,
+# o `git pull` (rodando como root) falha com "dubious ownership" e o set -e aborta o
+# startup-script ANTES do npm install/restart — deixando o código velho.
+# IMPORTANTE: usar --system (grava em /etc/gitconfig, sempre lido) — o --global
+# depende de $HOME=/root, que NÃO vale no contexto do startup-script do boot; por
+# isso os git pull do boot vinham falhando em silêncio. O -c inline é reforço.
+git config --system --add safe.directory /opt/whatsapp-mcp || true
 if [ -d /opt/whatsapp-mcp/.git ]; then
-  cd /opt/whatsapp-mcp && git pull -q
+  git -C /opt/whatsapp-mcp -c safe.directory=/opt/whatsapp-mcp pull -q
 else
   rm -rf /opt/whatsapp-mcp && git clone -q "$REPO_URL" /opt/whatsapp-mcp
 fi
