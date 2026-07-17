@@ -13,7 +13,9 @@ desça para o detalhe conforme a necessidade.
 - [mcp-conectores-e-deploy.md](mcp-conectores-e-deploy.md) — os conectores no claude.ai
   (regra do nome ASCII), URLs, pipeline de deploy dos 3 MCPs.
 - [whatsapp-mcp-arquitetura.md](whatsapp-mcp-arquitetura.md) — arquitetura do MCP de WhatsApp,
-  as 15 ferramentas, e a **tabela de troubleshooting** (405, git ownership, 9º dígito, OAuth…).
+  as ferramentas, e a **tabela de troubleshooting** (405, git ownership, 9º dígito, OAuth…).
+- [whatsapp-mcp-monitoramento.md](whatsapp-mcp-monitoramento.md) — monitoramento do canal
+  (verificação diária via GitHub Actions + UptimeRobot) e **runbook** ("o canal parou, e agora?").
 
 ## 💰 Custos
 - [custos-consolidado.md](custos-consolidado.md) — custo dos 3 MCPs + monitoria, e por que ~R$0.
