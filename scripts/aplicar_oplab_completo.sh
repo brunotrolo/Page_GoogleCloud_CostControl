@@ -17,8 +17,8 @@ set -euo pipefail
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches/oplab_mcp"
 WORK="$(mktemp -d)"; cd "$WORK"
 
-git clone --depth 1 https://github.com/brunotrolo/oplab_mcp.git
-cd oplab_mcp
+git clone --depth 1 https://github.com/brunotrolo/MCP_OplabAPI.git
+cd MCP_OplabAPI
 
 cp "$SRC/bs_engine.ts"                  src/utils/bs_engine.ts
 cp "$SRC/whitelist_source.ts"           src/utils/whitelist_source.ts
@@ -28,6 +28,7 @@ cp "$SRC/manejo_engine.ts"              src/utils/manejo_engine.ts
 cp "$SRC/estrutura_engine.ts"           src/utils/estrutura_engine.ts
 cp "$SRC/backtest_engine.ts"            src/utils/backtest_engine.ts
 cp "$SRC/backtest_estrutural_engine.ts" src/utils/backtest_estrutural_engine.ts
+cp "$SRC/opportunity_engine.ts"         src/utils/opportunity_engine.ts
 
 echo "==> Testes (falha aborta o deploy)..."
 cp "$SRC/bs_engine.test.ts" src/utils/bs_engine.test.ts

@@ -87,13 +87,6 @@ const TOOL_REGISTRY: ToolDef[] = [
     build: (a) => ({ path: `/market/options/details/${String(a.symbol).toUpperCase()}` }),
   },
   {
-    name: "get_covered_options",
-    description: "Listar opções recomendadas para estratégias cobertas (covered calls / cash-secured puts). Pode filtrar por ativo subjacente.",
-    properties: { underlying: { type: "string", description: "Códigos das ações separados por vírgula para filtrar (opcional, ex: PETR4,VALE3)" } },
-    required: [],
-    build: (a) => ({ path: "/market/options/strategies/covered", params: pick(a, ["underlying"]) }),
-  },
-  {
     name: "get_options_bs",
     description: "Calcular Black-Scholes de uma opção: prêmio teórico, gregas e volatilidade. WHAT-IF: se você informar spotprice + strike + vol + prazo (dtm ou duedate) + type, o cálculo é feito LOCALMENTE por fórmula fechada (modelo europeu, validado contra Hull) usando EXATAMENTE esses valores — porque o endpoint OpLab ignora spotprice/vol quando recebe o symbol de uma opção (e erra 500 no modo ação). Sem esses inputs, faz passthrough para o endpoint (preço de mercado da opção). O campo 'metodo' indica qual caminho foi usado.",
     properties: {
@@ -111,13 +104,6 @@ const TOOL_REGISTRY: ToolDef[] = [
     required: ["symbol", "irate"],
     handler: (client, a) => getOptionsBs(client, a),
   },
-  {
-    name: "get_options_powders",
-    description: "Listar os principais 'pozinhos' do mercado de opções (opções baratas com alto potencial de ganho).",
-    properties: {}, required: [],
-    build: () => ({ path: "/market/options/powders" }),
-  },
-
   // ── Quote ─────────────────────────────────────────────────────────────────
   {
     name: "get_quote",
@@ -235,16 +221,6 @@ const TOOL_REGISTRY: ToolDef[] = [
     },
     required: [],
     build: (a) => ({ path: "/market/statistics/realtime/highest_options_volume", params: pick(a, ["order_by", "limit"]) }),
-  },
-  {
-    name: "get_best_covered_options_rates",
-    description: "Listar opções com as maiores taxas de retorno para estratégias cobertas (covered call ou cash-secured put).",
-    properties: {
-      type:  { type: "string",  description: "Tipo da opção: CALL ou PUT", enum: ["CALL", "PUT"] },
-      limit: { type: "integer", description: "Quantidade máxima de itens (padrão: 20)" },
-    },
-    required: ["type"],
-    build: (a) => ({ path: `/market/statistics/realtime/best_covered_options_rates/${a.type}`, params: pick(a, ["limit"]) }),
   },
   {
     name: "get_highest_options_variation",
@@ -419,10 +395,10 @@ const TOOL_REGISTRY: ToolDef[] = [
       "Ferramenta ANALÍTICA (apenas sugere um plano — não envia ordens). Monta um plano mensal de travas Bull Put Spread que, combinadas, buscam atingir a meta de prêmio líquido do mês respeitando capital e margem disponíveis. Aplica filtros de qualidade (IV Rank >= 50, tendência M9/M21 >= 1.0, volume de PUT >= R$5M), seleciona a trava real da cadeia ao vivo (delta/bid/ask reais) e dimensiona os lotes. Retorna viabilidade, plano de execução com instruções por trava, resumo financeiro e alertas. Sem 'tickers', usa 12 ativos pré-selecionados. DICA DE USO: se a resposta vier com muitos ativos eliminados por 'iv_rank_baixo' (motivos_eliminacao.iv_rank_baixo alto), chame de novo passando iv_rank_periodo=252 — a janela de 63d (padrão) reage ao regime recente e pode reprovar ativos que têm IV Rank alto na faixa anual. Se os ativos forem eliminados por 'sem_trava_viavel', o gargalo é o prêmio da cadeia (não o IV Rank): mudar o período não ajuda.",
     properties: {
       capital:        { type: "number",  description: "Capital total disponível em R$ (ex: 130000). OBRIGATÓRIO." },
-      meta_mensal:    { type: "number",  description: "Prêmio líquido alvo no mês em R$. Padrão: 4000" },
+      meta_mensal:    { type: "number",  description: "Prêmio líquido alvo no mês em R$. Padrão: 5000 (alinhado a meta_mensal_min_brl do projeto)" },
       margem_max_pct: { type: "number",  description: "Fração máxima do capital alocada em margem (0-1). Padrão: 0.35" },
       spread_width:   { type: "number",  description: "Distância em R$ entre o strike vendido e o comprado. Padrão: 3.0" },
-      delta_min:      { type: "number",  description: "Delta mais negativo aceito na PUT vendida. Padrão: -0.25 (nunca abaixo de -0.30)" },
+      delta_min:      { type: "number",  description: "Delta mais negativo aceito na PUT vendida. Padrão: -0.30 (alinhado a delta_entrada_max do projeto)" },
       delta_max:      { type: "number",  description: "Delta menos negativo aceito na PUT vendida. Padrão: -0.15" },
       dte_min:        { type: "integer", description: "Dias até o vencimento mínimo. Padrão: 15" },
       dte_max:        { type: "integer", description: "Dias até o vencimento máximo. Padrão: 30" },
