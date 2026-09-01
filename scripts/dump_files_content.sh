@@ -14,7 +14,7 @@ WORK="$(mktemp -d)"
 mkdir -p "$ROOT/analysis"
 
 git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git >/dev/null 2>&1
-D="$WORK/google-sheets-mcp/files"
+D="$WORK/MCP_ControleOpcoes/files"
 cd "$D"
 
 {

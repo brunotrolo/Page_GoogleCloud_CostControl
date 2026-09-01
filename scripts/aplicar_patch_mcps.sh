@@ -31,15 +31,15 @@ gcloud run deploy oplab-mcp-server --source "$WORK/oplab_mcp" \
 # ------------------- google-sheets-mcp -------------------
 echo "==> 2/2 google-sheets-mcp"
 git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git
-cp "$PATCHES/google-sheets-mcp/index.ts" "$WORK/google-sheets-mcp/src/index.ts"
-( cd "$WORK/google-sheets-mcp" && npm pkg set 'dependencies.@modelcontextprotocol/sdk=^1.12.1' )
-git -C "$WORK/google-sheets-mcp" config user.email "actions@github.com"
-git -C "$WORK/google-sheets-mcp" config user.name  "cost-fix-bot"
-if ! git -C "$WORK/google-sheets-mcp" diff --quiet; then
-  git -C "$WORK/google-sheets-mcp" commit -am "fix: SSE -> Streamable HTTP stateless (corta custo de CPU)"
-  git -C "$WORK/google-sheets-mcp" push
+cp "$PATCHES/google-sheets-mcp/index.ts" "$WORK/MCP_ControleOpcoes/src/index.ts"
+( cd "$WORK/MCP_ControleOpcoes" && npm pkg set 'dependencies.@modelcontextprotocol/sdk=^1.12.1' )
+git -C "$WORK/MCP_ControleOpcoes" config user.email "actions@github.com"
+git -C "$WORK/MCP_ControleOpcoes" config user.name  "cost-fix-bot"
+if ! git -C "$WORK/MCP_ControleOpcoes" diff --quiet; then
+  git -C "$WORK/MCP_ControleOpcoes" commit -am "fix: SSE -> Streamable HTTP stateless (corta custo de CPU)"
+  git -C "$WORK/MCP_ControleOpcoes" push
 fi
-gcloud run deploy oplab-sheets-mcp --source "$WORK/google-sheets-mcp" \
+gcloud run deploy oplab-sheets-mcp --source "$WORK/MCP_ControleOpcoes" \
   --project oplab-sheets-mcp-project "${deploy_flags[@]}"
 
 echo ""

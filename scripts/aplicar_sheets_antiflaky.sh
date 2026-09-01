@@ -26,8 +26,8 @@ SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches/google-sheets-mcp/
 WORK="$(mktemp -d)"; cd "$WORK"
 
 git clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git
-cp "$SRC" google-sheets-mcp/src/index.ts
-cd google-sheets-mcp
+cp "$SRC" MCP_ControleOpcoes/src/index.ts
+cd MCP_ControleOpcoes
 
 if git diff --quiet; then
   echo "Nada a mudar (já está atualizado)."

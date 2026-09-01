@@ -29,7 +29,7 @@ SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches/google-sheets-mcp"
 WORK="$(mktemp -d)"; cd "$WORK"
 
 git clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git
-cd google-sheets-mcp
+cd MCP_ControleOpcoes
 
 cp "$SRC/index.ts"          src/index.ts
 cp "$SRC/status_engine.ts"  src/status_engine.ts

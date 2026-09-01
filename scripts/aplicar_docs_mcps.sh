@@ -13,7 +13,7 @@ WORK="$(mktemp -d)"
 
 NOTE=$'\n\n---\n\n## 💰 Gestão de custos (LEIA ANTES DE FAZER DEPLOY)\n\nEste MCP roda no Google Cloud Run. Para não gerar custo elevado, siga a arquitetura\nde referência em [**COST_MANAGEMENT.md**](COST_MANAGEMENT.md): transporte **Streamable\nHTTP stateless** (nunca SSE), `--cpu-throttling`, `--min-instances=0`, `--timeout=120`.\nRegra de ouro: **conexão não pode ficar pendurada** — é o que faz a CPU ser cobrada 24/7.\n'
 
-for repo in oplab_mcp google-sheets-mcp; do
+for repo in oplab_mcp MCP_ControleOpcoes; do
   echo "==> $repo"
   git -C "$WORK" clone --depth 1 "https://github.com/brunotrolo/${repo}.git"
   cp "$DOC" "$WORK/$repo/COST_MANAGEMENT.md"
