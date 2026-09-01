@@ -90,6 +90,24 @@ interface AtivoAprovado {
   premio_liquido: number;
 }
 
+// Um item por ticker TESTADO — aprovado ou não. `aprovado` é fato (passou nos
+// filtros explícitos, sim/não), `motivo` é o texto factual de por que foi
+// eliminado (null se aprovado). Campos de mercado ficam presentes até onde o
+// pipeline chegou antes de eliminar (ex.: eliminado por volume nunca calcula
+// iv_rank — o campo fica ausente, não inventado).
+interface AtivoAvaliado {
+  ticker: string;
+  aprovado: boolean;
+  motivo: string | null;
+  spot?: number;
+  m9m21?: number;
+  volume_put_mm?: number;
+  iv_rank?: number;
+  venda?: PutOption;
+  compra?: PutOption;
+  premio_liquido?: number;
+}
+
 export interface OportunidadeResult {
   data_analise: string;
   parametros: {
@@ -102,14 +120,11 @@ export interface OportunidadeResult {
     iv_rank_periodo: number;
   };
   viabilidade: {
-    meta_atingivel: boolean;
     premium_projetado: number;
     premio_vs_meta_pct: number;
     margem_total: number;
     pct_capital_usado: number;
     margem_disponivel_restante: number;
-    ativos_aprovados: number;
-    ativos_eliminados: number;
     motivos_eliminacao: {
       iv_rank_baixo: number;
       m9m21_baixo: number;
@@ -117,6 +132,9 @@ export interface OportunidadeResult {
       sem_trava_viavel: number;
     };
   };
+  // Todo ticker TESTADO (aprovado ou não), com seus números crus e o motivo
+  // factual da eliminação (sem separar em duas listas por julgamento).
+  ativos_avaliados: AtivoAvaliado[];
   plano_execucao: Array<Record<string, unknown>>;
   resumo_financeiro: {
     premio_total_projetado: number;
@@ -232,6 +250,12 @@ interface AvaliacaoTicker {
   aprovado?: AtivoAprovado;
   rejeicao?: Rejeicao;
   detalhe?: string;
+  // Fatos parciais já calculados até o estágio em que a rejeição ocorreu
+  // (ausentes = pipeline nunca chegou lá, não é null forçado).
+  spot?: number;
+  m9m21?: number;
+  volume_put_mm?: number;
+  iv_rank?: number;
 }
 
 async function avaliarTicker(
@@ -257,13 +281,13 @@ async function avaliarTicker(
 
   // Regra crítica: NUNCA recomendar M9/M21 < 1.0.
   if (!(m9m21 >= 1.0)) {
-    return { ticker: tk, rejeicao: "m9m21_baixo", detalhe: `M9M21=${isFinite(m9m21) ? round2(m9m21) : "n/d"} (baixista)` };
+    return { ticker: tk, rejeicao: "m9m21_baixo", detalhe: `M9M21=${isFinite(m9m21) ? round2(m9m21) : "n/d"} (baixista)`, spot: round2(spot), m9m21: isFinite(m9m21) ? round2(m9m21) : undefined };
   }
 
   // Filtro C: volume financeiro de PUT >= 5MM.
   const vol = volumePut.get(tk) ?? 0;
   if (vol < VOLUME_PUT_MIN) {
-    return { ticker: tk, rejeicao: "volume_insuficiente", detalhe: `volume PUT R$${round1(vol / 1e6)}MM < 5MM` };
+    return { ticker: tk, rejeicao: "volume_insuficiente", detalhe: `volume PUT R$${round1(vol / 1e6)}MM < 5MM`, spot: round2(spot), m9m21: round2(m9m21), volume_put_mm: round1(vol / 1e6) };
   }
 
   // Filtro A: IV Rank >= 50 na janela escolhida (iv_rank_periodo). 63d reage mais
@@ -277,7 +301,7 @@ async function avaliarTicker(
     ivRank = NaN;
   }
   if (!(ivRank >= IV_RANK_MIN)) {
-    return { ticker: tk, rejeicao: "iv_rank_baixo", detalhe: `IV Rank ${p.iv_rank_periodo}d=${isFinite(ivRank) ? round1(ivRank) : "n/d"}% < ${IV_RANK_MIN}%` };
+    return { ticker: tk, rejeicao: "iv_rank_baixo", detalhe: `IV Rank ${p.iv_rank_periodo}d=${isFinite(ivRank) ? round1(ivRank) : "n/d"}% < ${IV_RANK_MIN}%`, spot: round2(spot), m9m21: round2(m9m21), volume_put_mm: round1(vol / 1e6), iv_rank: isFinite(ivRank) ? round1(ivRank) : undefined };
   }
 
   // Trava real da cadeia ao vivo (série com bs=true).
@@ -289,11 +313,11 @@ async function avaliarTicker(
     });
     puts = extractPuts(data);
   } catch {
-    return { ticker: tk, rejeicao: "sem_trava_viavel", detalhe: "sem cadeia de opções" };
+    return { ticker: tk, rejeicao: "sem_trava_viavel", detalhe: "sem cadeia de opções", spot: round2(spot), m9m21: round2(m9m21), volume_put_mm: round1(vol / 1e6), iv_rank: round1(ivRank) };
   }
   const trava = selecionarTrava(puts, p);
   if (!trava) {
-    return { ticker: tk, rejeicao: "sem_trava_viavel", detalhe: "sem trava com prêmio/liquidez suficiente" };
+    return { ticker: tk, rejeicao: "sem_trava_viavel", detalhe: "sem trava com prêmio/liquidez suficiente", spot: round2(spot), m9m21: round2(m9m21), volume_put_mm: round1(vol / 1e6), iv_rank: round1(ivRank) };
   }
 
   return {
@@ -309,6 +333,22 @@ async function avaliarTicker(
       premio_liquido: trava.premioLiquido,
     },
   };
+}
+
+/**
+ * Unifica os ativos TESTADOS (aprovados + rejeitados) num único array — sem
+ * separar em duas listas por julgamento. `aprovado` e `motivo` são fatos
+ * (passou ou não nos filtros explícitos, e por quê); quem chama decide o que
+ * fazer com cada um.
+ */
+function buildAtivosAvaliados(avaliacoes: AvaliacaoTicker[]): AtivoAvaliado[] {
+  return avaliacoes.map((av): AtivoAvaliado => {
+    if (av.aprovado) {
+      const a = av.aprovado;
+      return { ticker: a.ticker, aprovado: true, motivo: null, spot: a.spot, m9m21: a.m9m21, volume_put_mm: a.volume_put_mm, iv_rank: a.iv_rank, venda: a.venda, compra: a.compra, premio_liquido: a.premio_liquido };
+    }
+    return { ticker: av.ticker, aprovado: false, motivo: av.detalhe ?? av.rejeicao ?? "desconhecido", spot: av.spot, m9m21: av.m9m21, volume_put_mm: av.volume_put_mm, iv_rank: av.iv_rank };
+  });
 }
 
 // ── Dimensionamento de lotes ──────────────────────────────────────────────────
@@ -443,7 +483,7 @@ export async function getOportunidadesMensais(client: AxiosInstance, args: Recor
     alertas.push(
       "Nenhum ativo aprovado hoje. Mercado não oferece oportunidade dentro dos critérios. Aguardar próxima janela."
     );
-    return montarVazio(p, dataAnalise, motivos, alertas);
+    return montarVazio(p, dataAnalise, motivos, alertas, avaliacoes);
   }
 
   // Dimensiona lotes para a meta dentro da margem.
@@ -452,7 +492,7 @@ export async function getOportunidadesMensais(client: AxiosInstance, args: Recor
 
   if (travas.length === 0) {
     alertas.push("Margem insuficiente para montar ao menos uma trava. Aumente o capital ou a margem_max_pct.");
-    return montarVazio(p, dataAnalise, motivos, alertas, aprovados.length);
+    return montarVazio(p, dataAnalise, motivos, alertas, avaliacoes);
   }
 
   // Monta o plano de execução.
@@ -500,15 +540,8 @@ export async function getOportunidadesMensais(client: AxiosInstance, args: Recor
   const margemTotal = round2(travas.reduce((s, t) => s + t.margemTrava, 0));
   const margemDisponivel = p.capital * p.margem_max_pct;
   const pctCapital = round1((margemTotal / p.capital) * 100);
-  const metaAtingivel = premioTotal >= p.meta_mensal;
-
-  if (!metaAtingivel) {
-    alertas.push(
-      `Meta parcialmente atingida: R$${premioTotal} de R$${p.meta_mensal}. Aumentar spread_width ou reduzir a meta.`
-    );
-  } else {
-    alertas.push(`ℹ️ Meta atingida com ${travas.length} ativo(s).`);
-  }
+  // Sem veredito "meta atingida?" nem recomendação de ajuste embutida — premioTotal
+  // e parametros.meta_mensal já são números crus; quem chama compara e decide.
 
   // DTE médio das vendas → retorno anualizado (252 dias úteis ≈ 365 corridos).
   const dteMedio = travas.reduce((s, t) => s + t.ativo.venda.dte, 0) / travas.length || 30;
@@ -527,16 +560,14 @@ export async function getOportunidadesMensais(client: AxiosInstance, args: Recor
       iv_rank_periodo: p.iv_rank_periodo,
     },
     viabilidade: {
-      meta_atingivel: metaAtingivel,
       premium_projetado: premioTotal,
       premio_vs_meta_pct: p.meta_mensal > 0 ? round2((premioTotal / p.meta_mensal) * 100) : 0,
       margem_total: margemTotal,
       pct_capital_usado: pctCapital,
       margem_disponivel_restante: round2(margemDisponivel - margemTotal),
-      ativos_aprovados: aprovados.length,
-      ativos_eliminados: p.tickers.length - aprovados.length,
       motivos_eliminacao: motivos,
     },
+    ativos_avaliados: buildAtivosAvaliados(avaliacoes),
     plano_execucao: plano,
     resumo_financeiro: {
       premio_total_projetado: premioTotal,
@@ -558,7 +589,7 @@ function montarVazio(
   dataAnalise: string,
   motivos: OportunidadeResult["viabilidade"]["motivos_eliminacao"],
   alertas: string[],
-  aprovados = 0
+  avaliacoes: AvaliacaoTicker[] = []
 ): OportunidadeResult {
   const margemDisponivel = p.capital * p.margem_max_pct;
   return {
@@ -573,16 +604,14 @@ function montarVazio(
       iv_rank_periodo: p.iv_rank_periodo,
     },
     viabilidade: {
-      meta_atingivel: false,
       premium_projetado: 0,
       premio_vs_meta_pct: 0,
       margem_total: 0,
       pct_capital_usado: 0,
       margem_disponivel_restante: round2(margemDisponivel),
-      ativos_aprovados: aprovados,
-      ativos_eliminados: p.tickers.length - aprovados,
       motivos_eliminacao: motivos,
     },
+    ativos_avaliados: buildAtivosAvaliados(avaliacoes),
     plano_execucao: [],
     resumo_financeiro: {
       premio_total_projetado: 0,
