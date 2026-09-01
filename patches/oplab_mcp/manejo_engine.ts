@@ -480,8 +480,6 @@ async function avaliarTrocaTicker(
     const probSucesso = 1 - Math.abs(nova.delta);
     const premioAjustado = premioLiqTotal * probSucesso; // prêmio LÍQUIDO esperado por ciclo
     const ciclosRecuperacao = premioAjustado > 0 ? round2(Math.abs(prejuizoRealizado) / premioAjustado) : null;
-    const CICLOS_MAX = 3;
-    const valeATroca = premioLiqAcao > 0 && eficiencia >= 0.25 && ciclosRecuperacao !== null && ciclosRecuperacao <= CICLOS_MAX && Math.abs(nova.delta) <= 0.30 && t.iv_rank > p.iv_rank_min && t.m9m21 >= 1.0;
     migracoes.push({
       ticker: t.ticker, iv_rank: round2(t.iv_rank), m9m21: round2(t.m9m21), spot: round2(t.spot),
       variacao_dia_pct: t.variacaoDia, alerta_timing: alertaTiming(t.variacaoDia, "PUT", -2),
@@ -489,7 +487,7 @@ async function avaliarTrocaTicker(
       vendida: { symbol: nova.symbol, strike: nova.strike, delta: round4(nova.delta), close: nova.close, liquidez_ref: { bid: nova.bid, ask: nova.ask, volume: nova.volume } },
       comprada_protecao: { symbol: prot.symbol, strike: prot.strike, delta: round4(prot.delta), close: prot.close, liquidez_ref: { bid: prot.bid, ask: prot.ask, volume: prot.volume } },
       premio_liquido_por_acao: premioLiqAcao, premio_liquido_total: premioLiqTotal, largura, eficiencia_pct: pct1(eficiencia), risco_maximo_total: riscoMax,
-      premio_por_ciclo: premioLiqTotal, ciclos_para_recuperar: ciclosRecuperacao, prob_sucesso_aprox_pct: pct1(probSucesso), vale_a_troca: valeATroca,
+      premio_por_ciclo: premioLiqTotal, ciclos_para_recuperar: ciclosRecuperacao, prob_sucesso_aprox_pct: pct1(probSucesso),
     });
   });
   migracoes.sort((a, b) => Number(b.premio_liquido_total) - Number(a.premio_liquido_total));

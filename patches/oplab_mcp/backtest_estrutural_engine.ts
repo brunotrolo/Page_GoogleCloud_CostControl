@@ -247,27 +247,6 @@ export async function getBacktestEstrutural(client: AxiosInstance, args: Record<
   };
   const coortes: Coorte[] = Object.entries(f).map(([nome, ops]) => statsCoorte(nome, ops));
 
-  // ── Conclusão ──
-  const baseline = coortes.find((c) => c.nome === "baseline")!;
-  const candidatas = coortes.filter((c) => c.nome !== "baseline" && c.n_operacoes >= N_MIN_COORTE);
-  let melhor_coorte: string | null = null;
-  let lift_vs_baseline_pp: number | null = null;
-  let amostra_suficiente = false;
-  let veredito: string;
-
-  if (candidatas.length === 0) {
-    veredito = "AMOSTRA_INSUFICIENTE";
-    // reporta a de maior n para transparência, mesmo abaixo do mínimo
-    const maiorN = coortes.filter((c) => c.nome !== "baseline").sort((a, b) => b.n_operacoes - a.n_operacoes)[0];
-    melhor_coorte = maiorN ? maiorN.nome : null;
-  } else {
-    amostra_suficiente = true;
-    const vencedora = [...candidatas].sort((a, b) => (b.win_rate_pct - a.win_rate_pct) || (b.n_operacoes - a.n_operacoes))[0];
-    melhor_coorte = vencedora.nome;
-    lift_vs_baseline_pp = round1(vencedora.win_rate_pct - baseline.win_rate_pct);
-    veredito = lift_vs_baseline_pp >= LIFT_MIN_PP ? "ESTRUTURA_TEM_EDGE" : "ESTRUTURA_SEM_EDGE";
-  }
-
   // ── por_ticker (baseline) ──
   const porTickerMap = new Map<string, EntryOp[]>();
   for (const o of all) { const arr = porTickerMap.get(o.ticker) ?? []; arr.push(o); porTickerMap.set(o.ticker, arr); }
@@ -298,13 +277,12 @@ export async function getBacktestEstrutural(client: AxiosInstance, args: Record<
     tickers_analisados: [...porTickerMap.keys()],
     parametros: { dte_alvo: p.dte_alvo, delta_alvo: p.delta_alvo, use_spread: p.use_spread, n_min_coorte: N_MIN_COORTE, lift_min_pp: LIFT_MIN_PP },
     coortes,
-    conclusao: { melhor_coorte, lift_vs_baseline_pp, amostra_suficiente, veredito },
     por_ticker,
     ...(operacoes ? { operacoes } : {}),
     alertas,
     snapshot_timestamp: new Date().toISOString(),
     base_calculo: "Backtest determinístico sobre OHLC + cadeia de opções histórica. ZERO look-ahead: estrutura e indicadores reconstruídos só com dados até a entrada. Coortes = subconjuntos do mesmo baseline. Não é sinal de compra/venda.",
-    nota_metodologica: "Win rate alto com desvio-padrão alto NÃO é edge. Coorte com n<30 não declara edge. Lift <5pp ⇒ ESTRUTURA_SEM_EDGE (não justifica a complexidade da #2).",
+    nota_metodologica: "Win rate alto com desvio-padrão alto NÃO é edge. A ferramenta não declara edge — compare win_rate_pct de cada coorte vs baseline (lift) e confira n_operacoes contra parametros.n_min_coorte e o lift contra parametros.lift_min_pp antes de considerar a coorte relevante.",
   };
 
   estruturalCache.set(cacheKey, { data: result, timestamp: Date.now() });
