@@ -18,7 +18,10 @@ function row(o: Partial<Record<string, any>>): any {
     ...o,
   };
 }
-function build(rows: any[], args: any = {}) { return buildStatusOperacoes(rows, args, HOJE); }
+// patrimonio é obrigatório na função real (§9) — os testes de estrutura/payoff
+// não avaliam concentração, então fixamos um valor de teste aqui só para não
+// precisar repeti-lo em cada chamada.
+function build(rows: any[], args: any = {}) { return buildStatusOperacoes(rows, { patrimonio: 120000, ...args }, HOJE); }
 function only(rows: any[], args: any = {}) { const r = build(rows, args); assert.strictEqual(r.estruturas.length, 1, 'esperava 1 estrutura'); return r.estruturas[0]; }
 
 console.log('status_engine — testes com oráculos manuais\n');
@@ -158,6 +161,21 @@ t('(i) custo_zerar positivo = credito recebido', () => {
   ]);
   assert.ok(approx(e.custo_zerar, 400), `custo_zerar=${e.custo_zerar}`);
   assert.match(e.custo_zerar_convencao, /positivo = credito/);
+});
+
+// (j) patrimonio é OBRIGATÓRIO — sem ele, erro explícito (nunca concentração
+// calculada com um valor desatualizado silenciosamente). ─────────────────────
+t('(j) patrimonio ausente lança erro', () => {
+  assert.throws(() => buildStatusOperacoes([row({})], {}, HOJE), /patrimonio.*obrigatório/i);
+  assert.throws(() => buildStatusOperacoes([row({})], { patrimonio: 0 }, HOJE), /patrimonio.*obrigatório/i);
+  assert.throws(() => buildStatusOperacoes([row({})], { patrimonio: -100 }, HOJE), /patrimonio.*obrigatório/i);
+});
+
+// (k) limite_concentracao_pct default = 20 (alinhado ao portfolio_params.yaml,
+// que antes divergia do default anterior de 25 aqui no código). ──────────────
+t('(k) limite_concentracao_pct default é 20', () => {
+  const r = buildStatusOperacoes([row({})], { patrimonio: 120000 }, HOJE);
+  assert.strictEqual(r.resumo.limite_concentracao_pct, 20);
 });
 
 console.log(`\n✅ ${passed} testes passaram.`);

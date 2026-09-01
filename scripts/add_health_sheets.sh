@@ -9,8 +9,8 @@ set -euo pipefail
 
 WORK="$(mktemp -d)"
 cd "$WORK"
-git clone --depth 1 https://github.com/brunotrolo/google-sheets-mcp.git
-cd google-sheets-mcp
+git clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git
+cd MCP_ControleOpcoes
 
 if grep -q "'/health'" src/index.ts; then
   echo "Rota /health já existe — nada a fazer."

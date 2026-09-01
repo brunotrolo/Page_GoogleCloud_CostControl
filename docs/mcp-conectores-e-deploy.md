@@ -67,7 +67,7 @@ URLs `/mcp`:
 ## Pipeline de deploy
 
 O código-fonte dos MCPs vive em repositórios separados
-(`brunotrolo/oplab_mcp`, `brunotrolo/google-sheets-mcp`, `brunotrolo/WhatsApp_MCP`).
+(`brunotrolo/oplab_mcp`, `brunotrolo/MCP_ControleOpcoes`, `brunotrolo/WhatsApp_MCP`).
 Editamos cópias em `patches/` e publicamos via scripts no Cloud Shell:
 
 ```bash

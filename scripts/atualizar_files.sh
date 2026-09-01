@@ -10,8 +10,8 @@ set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches/google-sheets-mcp-files"
 WORK="$(mktemp -d)"; cd "$WORK"
-git clone --depth 1 https://github.com/brunotrolo/google-sheets-mcp.git
-cd google-sheets-mcp
+git clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git
+cd MCP_ControleOpcoes
 
 cp "$SRC/00_INICIO.md"  files/00_INICIO.md
 cp "$SRC/01_PROJETO.md" files/01_PROJETO.md
