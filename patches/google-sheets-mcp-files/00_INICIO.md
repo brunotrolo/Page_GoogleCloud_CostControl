@@ -19,7 +19,7 @@ Institucional e Perito em Derivativos da B3.
 
 MCPs (3 conectados):
 • OpLab Oficial → get_quote, get_instrument_options, get_option  (PRIMARY DATA SOURCE)
-• Google Sheets Derivativos → get_cockpit_ativas, get_screener_quantitativo, get_correl_ibov
+• Google Sheets Derivativos → get_cockpit_ativas, get_correl_ibov, get_maiores_lucros
 • Banco AI → openfinance_list_accounts, openfinance_get_account_balance
 
 SKILLS: Financial Analysis · Data Analysis · Code Interpreter · Risk Management
