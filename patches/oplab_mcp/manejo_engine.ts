@@ -743,8 +743,9 @@ export async function getAnaliseManejo(client: AxiosInstance, args: Record<strin
     const pSobrevive = c.prob_mc_exercicio_pct !== null ? 1 - c.prob_mc_exercicio_pct / 100 : 1 - Math.abs(c.delta_pos_rolagem);
     c.score = round4(roic * (c.theta_dia_por_acao ?? 0.001) * qty * pSobrevive);
   }
+  // Ordenado por score (ROIC × theta/dia × prob_sobrevive) — ranking informativo,
+  // não uma recomendação: quem chama decide qual (se algum) candidato usar.
   aprovados.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
-  const vencedor = aprovados[0] ?? null;
 
   // ── Ajuste 3: gatilho de troca de ticker ────────────────────────────────────
   const falhas = [deltaAtualAbs > 0.50, isFinite(m9m21) && m9m21 < 1.0, ivRank !== null && ivRank < 50].filter(Boolean).length;
@@ -753,24 +754,6 @@ export async function getAnaliseManejo(client: AxiosInstance, args: Record<strin
     const prejuizo = custoAncora !== null ? custoAncora : 0; // Ajuste 9: âncora = custo presente de desmontar (não o P&L de montagem)
     trocaTicker = { avaliado: true, gatilho: `${falhas}/3 critérios ruins (delta>${0.50}? ${deltaAtualAbs > 0.5} | M9M21<1? ${isFinite(m9m21) && m9m21 < 1} | IVRank<50? ${ivRank !== null && ivRank < 50})`, ...(await avaliarTrocaTicker(client, p, prejuizo, doente.mercado!.strike * qty) as object) };
   }
-
-  const decisao = vencedor
-    ? { acao: "ROLAR", candidato: vencedor.id, racional: `Melhor score entre ${aprovados.length}/${candidatos.length}: crédito R$ ${vencedor.credito_liquido_total}, delta ${vencedor.delta_pos_rolagem} (vs ${round4(-deltaAtualAbs)}), venc ${vencedor.mensal ? "MENSAL" : "semanal"} ${vencedor.vencimento}, P(exerc real) ${vencedor.prob_mc_exercicio_pct ?? "n/d"}%.`,
-        plano_execucao: [
-          `1. COMPRAR (fechar) ${qty} ${doente.option_ticker} — ref. CLOSE R$ ${closeRecompra}`,
-          ...(protecaoPar && !vencedor.mantem_protecao_atual ? [`2. VENDER (fechar) ${protecaoPar.quantity} ${protecaoPar.option_ticker} — ref. CLOSE R$ ${protecaoPar.mercado!.close}`] : []),
-          `${protecaoPar && !vencedor.mantem_protecao_atual ? 3 : 2}. VENDER (abrir) ${qty} ${vencedor.nova_vendida.symbol} — ref. CLOSE R$ ${vencedor.nova_vendida.close}`,
-          ...(vencedor.nova_comprada ? [`${protecaoPar && !vencedor.mantem_protecao_atual ? 4 : 3}. COMPRAR (abrir) ${qty} ${vencedor.nova_comprada.symbol} — ref. CLOSE R$ ${vencedor.nova_comprada.close}`] : []),
-          `Crédito líquido esperado ~R$ ${vencedor.credito_liquido_total} | novo BE R$ ${vencedor.breakeven_novo}. Validar no book vivo do próximo pregão.`,
-        ] }
-    : { acao: "NAO_ROLAR — avaliar ASSUMIR / ENCERRAR / TROCA DE TICKER", candidato: null,
-        racional: `Nenhuma rolagem a crédito sobreviveu (${candidatos.length} avaliados). Âncora da decisão = custo PRESENTE de desmontar as pernas-problema R$ ${custoDesmontarPernas ?? "INDISPONÍVEL"} (não o P&L de montagem). ${(trocaTicker as { avaliado?: boolean }).avaliado ? "Veja troca_ticker abaixo." : ""}`,
-        plano_execucao: [
-          custoEstruturaCompleta !== null ? `ENCERRAR estrutura completa (líquido): ~R$ ${custoEstruturaCompleta} (credita as long puts ITM).` : "ENCERRAR completo: INDISPONÍVEL.",
-          custoDesmontarPernas !== null ? `DESMONTAR só as pernas-problema (âncora): ~R$ ${custoDesmontarPernas} (recompra vendidas + vende só a proteção pareada).` : "DESMONTAR pernas-problema: INDISPONÍVEL.",
-          `ASSUMIR: exercício da ${doente.option_ticker} = comprar ${qty} ${p.ticker} a R$ ${doente.mercado!.strike} (R$ ${round2(doente.mercado!.strike * qty)}); pior perda da estrutura R$ ${piorPerda}.`,
-          "Reavaliar no próximo pregão: novo book/série pode reabrir candidato a crédito.",
-        ] };
 
   const snapshotTs = new Date().toISOString();
 
@@ -813,7 +796,6 @@ export async function getAnaliseManejo(client: AxiosInstance, args: Record<strin
     candidatos_rolagem: candidatos,
     ranking_aprovados: aprovados.map((c) => ({ id: c.id, descricao: c.descricao, mensal: c.mensal, score: c.score, credito_total: c.credito_liquido_total, delta: c.delta_pos_rolagem, prob_exercicio_pct: c.prob_mc_exercicio_pct })),
     troca_ticker: trocaTicker,
-    decisao,
     alertas,
     disclaimer: "Valores pelo CLOSE (não é execução). O motor não avalia patrimônio/colchão/concentração — isso é decisão do operador. Não é recomendação de investimento.",
   };
