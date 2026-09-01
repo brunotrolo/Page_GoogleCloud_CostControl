@@ -27,8 +27,6 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DAY_MS = 86_400_000;
 const MAX_PREV_DAY_RETRIES = 3;
 const MIN_CANDLES_ESTRUTURA = 30;
-const N_MIN_COORTE = 30;
-const LIFT_MIN_PP = 5;
 
 const round1 = (n: number) => Math.round(n * 10) / 10;
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -80,6 +78,8 @@ interface EstruturalParams {
   delta_alvo: number;
   use_spread: boolean;
   incluir_operacoes: boolean;
+  n_min_coorte: number;
+  lift_min_pp: number;
 }
 
 function normalizar(a: Record<string, unknown>): EstruturalParams {
@@ -91,6 +91,11 @@ function normalizar(a: Record<string, unknown>): EstruturalParams {
     delta_alvo: num(a.delta_alvo, -0.25),
     use_spread: a.use_spread === undefined ? true : Boolean(a.use_spread),
     incluir_operacoes: Boolean(a.incluir_operacoes),
+    // Limiares só REPORTADOS em parametros (não aplicados aqui — o veredito de
+    // edge foi removido da ferramenta). Opcionais, default = valor vigente do
+    // projeto; quem chama pode passar o valor lido do YAML explicitamente.
+    n_min_coorte: Math.max(1, Math.round(num(a.n_min_coorte, 30))),
+    lift_min_pp: num(a.lift_min_pp, 5),
   };
 }
 
@@ -275,7 +280,7 @@ export async function getBacktestEstrutural(client: AxiosInstance, args: Record<
   const result = {
     periodo: `${fmtDate(inicio)} a ${fmtDate(hoje)} (~${p.lookback_meses} meses)`,
     tickers_analisados: [...porTickerMap.keys()],
-    parametros: { dte_alvo: p.dte_alvo, delta_alvo: p.delta_alvo, use_spread: p.use_spread, n_min_coorte: N_MIN_COORTE, lift_min_pp: LIFT_MIN_PP },
+    parametros: { dte_alvo: p.dte_alvo, delta_alvo: p.delta_alvo, use_spread: p.use_spread, n_min_coorte: p.n_min_coorte, lift_min_pp: p.lift_min_pp },
     coortes,
     por_ticker,
     ...(operacoes ? { operacoes } : {}),

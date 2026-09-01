@@ -207,10 +207,22 @@ export async function getAnaliseEstrutura(client: AxiosInstance, args: Record<st
   const res = classificarEstrutura(candles);
   if (!res) return { erro: "DADOS_INCOMPLETOS", motivo: `histórico insuficiente (${candles.length} candles; mínimo 30)` };
 
+  // classificarEstrutura() continua calculando fase_atual/estrutura_tendencia
+  // internamente (o get_backtest_estrutural REUSA essa função para os filtros de
+  // cohort — não mexer nisso). Mas na RESPOSTA da ferramenta, classificar em
+  // categorias com limiar de corte é regra — mesmo não sendo sinal de compra/venda
+  // — então sai daqui: só os números crus (amplitude, inclinação, swings, volume,
+  // dias de antecipação) vão para quem chama decidir a fase.
+  const { fase_atual, estrutura_tendencia, fase_recente, fase_anterior, ...numerosCrus } = res;
+  const { fase: _f1, ...fase_recente_numeros } = fase_recente;
+  const { fase: _f2, ...fase_anterior_numeros } = fase_anterior;
+
   return {
     symbol,
-    ...res,
+    ...numerosCrus,
+    fase_recente: fase_recente_numeros,
+    fase_anterior: fase_anterior_numeros,
     snapshot_timestamp: new Date().toISOString(),
-    base_calculo: "Estrutura de preço pelo OHLC/close. Classificação factual — não é sinal de compra/venda nem previsão. Motor não avalia patrimônio.",
+    base_calculo: "Estrutura de preço pelo OHLC/close. Números crus e determinísticos — SEM classificação em fase pronta (a categorização por limiar é regra, mora em quem chama). Não é sinal de compra/venda nem previsão. Motor não avalia patrimônio.",
   };
 }
