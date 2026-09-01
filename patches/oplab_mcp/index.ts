@@ -347,7 +347,7 @@ const TOOL_REGISTRY: ToolDef[] = [
   // ── Volatilidade Implícita — IV Rank ────────────────────────────────────────
   {
     name: "get_iv_rank_historico",
-    description: "Calcular IV Rank e IV Percentile históricos de um ativo: compara a volatilidade implícita atual (iv_current da OpLab) com a faixa histórica de volatilidade realizada de 21 dias (anualizada). Retorna classificação operacional (MUITO_ALTA, ALTA, MEDIA, BAIXA), sinal de venda de opções e histórico mensal. Usa cache em memória de 4h.",
+    description: "Calcular IV Rank e IV Percentile históricos de um ativo: compara a volatilidade implícita atual (iv_current da OpLab) com a faixa histórica de volatilidade realizada de 21 dias (anualizada). Retorna números brutos — IV Rank, IV Percentile, IV Rank em 4 janelas (21/63/126/252 dias, multi_periodo) e histórico mensal — SEM classificação/sinal pronto embutido; quem chama decide o que fazer com os números. Usa cache em memória de 4h.",
     properties: {
       ticker:  { type: "string",  description: "Código da ação (ex: VALE3, PETR4)" },
       periodo: { type: "integer", description: "Janela em dias úteis para o IV Rank. Padrão: 252. Aceita: 21, 63, 126, 252" },
@@ -357,7 +357,7 @@ const TOOL_REGISTRY: ToolDef[] = [
   },
   {
     name: "get_iv_rank_bulk",
-    description: "Calcular IV Rank de vários ativos de uma vez e ranquear por IV Rank decrescente. Sem o parâmetro 'tickers', usa a whitelist padrão de 26 ativos líquidos (espelho da aba DADOS_ATIVOS; sincronizada dinamicamente se DADOS_ATIVOS_CSV_URL estiver configurada, senão lista fixa). Usa cache de 4h (tickers em cache não consomem chamadas) e processa os demais em lotes de 3 com 300ms entre lotes para evitar rate limit (HTTP 429). Ideal para triagem de oportunidades de venda de opções.",
+    description: "Calcular IV Rank de vários ativos de uma vez e ranquear por IV Rank decrescente. Sem o parâmetro 'tickers', usa a whitelist padrão de 26 ativos líquidos (espelho da aba DADOS_ATIVOS; sincronizada dinamicamente se DADOS_ATIVOS_CSV_URL estiver configurada, senão lista fixa). Usa cache de 4h (tickers em cache não consomem chamadas) e processa os demais em lotes de 3 com 300ms entre lotes para evitar rate limit (HTTP 429). Retorna números brutos por ativo (iv_rank, iv_rank_63d, iv_rank_252d, historico_insuficiente, alerta_evento) — SEM classificação/triagem pronta embutida; quem chama decide o que é 'pronto para operar'.",
     properties: {
       tickers: { type: "array",   description: "Lista de códigos de ações (ex: [\"VALE3\",\"PETR4\"]). Se omitido, usa a whitelist padrão de 26 ativos (aba DADOS_ATIVOS).", items: { type: "string" } },
       periodo: { type: "integer", description: "Janela em dias úteis para o IV Rank. Padrão: 252. Aceita: 21, 63, 126, 252" },

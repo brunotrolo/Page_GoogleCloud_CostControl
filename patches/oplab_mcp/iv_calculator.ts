@@ -60,19 +60,6 @@ export function calcIVPercentile(ivAtual: number, serie: number[]): number {
   return (count / serie.length) * 100;
 }
 
-export interface Classificacao {
-  nivel: string;
-  sinal: string;
-}
-
-/** Classifica o IV Rank em nível operacional + sinal. */
-export function classificarIVRank(ivRank: number): Classificacao {
-  if (ivRank >= 70) return { nivel: "MUITO_ALTA", sinal: "EXCELENTE — Vender opções agora" };
-  if (ivRank >= 50) return { nivel: "ALTA", sinal: "BOM — Momento favorável para vender" };
-  if (ivRank >= 30) return { nivel: "MEDIA", sinal: "NEUTRO — Avaliar outros filtros" };
-  return { nivel: "BAIXA", sinal: "EVITAR — IV abaixo da média histórica" };
-}
-
 // ── Helpers internos ────────────────────────────────────────────────────────
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
@@ -115,32 +102,6 @@ function toPercent(iv: number): number {
 /** Formata número em escala % com 1 casa e vírgula decimal (pt-BR): 71.5 → "71,5". */
 function fmtComma(n: number): string {
   return round1(n).toFixed(1).replace(".", ",");
-}
-
-export interface ConsensoInfo {
-  consenso: string;
-  consenso_sinal: string;
-  consenso_confianca: string;
-}
-
-/**
- * Consenso entre as janelas de 63d e 126d (as duas mais relevantes operacionalmente).
- * Confirma o sinal quando AMBAS cruzam o mesmo limiar; caso contrário, DIVERGENTE.
- */
-export function calcConsenso(r63: number, r126: number): ConsensoInfo {
-  if (r63 >= 70 && r126 >= 70)
-    return { consenso: "MUITO_ALTA", consenso_sinal: "EXCELENTE — Sinal confirmado em múltiplos períodos", consenso_confianca: "ALTA" };
-  if (r63 >= 50 && r126 >= 50)
-    return { consenso: "ALTA", consenso_sinal: "BOM — Sinal confirmado em múltiplos períodos", consenso_confianca: "ALTA" };
-  if (r63 >= 30 && r126 >= 30)
-    return { consenso: "MEDIA", consenso_sinal: "NEUTRO — Avaliar outros filtros", consenso_confianca: "MEDIA" };
-  if (r63 < 30 && r126 < 30)
-    return { consenso: "BAIXA", consenso_sinal: "EVITAR — IV baixa confirmada", consenso_confianca: "ALTA" };
-  return {
-    consenso: "DIVERGENTE",
-    consenso_sinal: "INCONCLUSIVO — Períodos divergem. Usar iv_rank_63d como referência para operações de curto prazo.",
-    consenso_confianca: "BAIXA",
-  };
 }
 
 // ── Cache em memória (TTL 4h) ───────────────────────────────────────────────
@@ -203,17 +164,12 @@ export interface IVRankResult {
   iv_media_periodo: number;
   iv_rank: number;
   iv_percentile: number;
-  classificacao: string;
-  sinal_operacional: string;
   // Ajuste 1 — alerta de histórico insuficiente
   historico_insuficiente: boolean;
   dias_disponiveis: number;
   aviso?: string;
-  // Ajuste 2 — multi-período e consenso
+  // Ajuste 2 — multi-período (números crus; comparação/decisão fica com quem chama)
   multi_periodo: MultiPeriodo;
-  consenso: string;
-  consenso_sinal: string;
-  consenso_confianca: string;
   // Ajuste 3 — detecção de evento corporativo
   alerta_evento: boolean;
   alerta_evento_msg?: string;
@@ -350,9 +306,9 @@ export async function getIVRankHistorico(
   const ivMedia = round1(mean(serie));
   const ivRank = clamp(calcIVRank(ivAtual, serie), 0, 100);
   const ivPercentile = clamp(calcIVPercentile(ivAtual, serie), 0, 100);
-  let { nivel, sinal } = classificarIVRank(ivRank);
 
   // Ajuste 2 — multi-período: IV Rank nas 4 janelas, reaproveitando volAll (sem nova chamada).
+  // Números crus — comparação/decisão (ex.: 63d vs 252d) fica com quem chama.
   const rankFor = (n: number) => round1(clamp(calcIVRank(ivAtual, volAll.slice(-n)), 0, 100));
   const multi_periodo: MultiPeriodo = {
     iv_rank_21d: rankFor(21),
@@ -360,10 +316,6 @@ export async function getIVRankHistorico(
     iv_rank_126d: rankFor(126),
     iv_rank_252d: rankFor(252),
   };
-  const { consenso, consenso_sinal, consenso_confianca } = calcConsenso(
-    multi_periodo.iv_rank_63d,
-    multi_periodo.iv_rank_126d
-  );
 
   // Ajuste 3 — evento corporativo: IV atual mais que 2× a média histórica do período.
   let alerta_evento = false;
@@ -373,8 +325,6 @@ export async function getIVRankHistorico(
     alerta_evento_msg =
       `IV atual (${fmtComma(ivAtual)}%) é mais que 2× a média histórica (${fmtComma(ivMedia)}%). ` +
       `Possível evento corporativo ou distorção de dados. Verificar notícias antes de operar.`;
-    // classificacao mantém o calculado; só o sinal operacional muda.
-    sinal = "⚠️ VERIFICAR EVENTO — IV anormalmente alta. Confirmar antes de operar.";
   }
 
   // Ajuste 1 — histórico insuficiente: avaliado SEMPRE em relação ao período
@@ -392,8 +342,6 @@ export async function getIVRankHistorico(
     aviso =
       `Histórico insuficiente para a janela de ${periodo} dias — apenas ${valoresNaJanela} ` +
       `valores de volatilidade disponíveis. IV Rank pode estar distorcido; usar com cautela.`;
-    nivel = "INSUFICIENTE";
-    sinal = "DADOS INSUFICIENTES — Verificar manualmente";
   } else if (valoresNaJanela < minNecessario) {
     aviso =
       `Período solicitado: ${periodo} dias. Disponível: ${valoresNaJanela} valores de ` +
@@ -423,15 +371,10 @@ export async function getIVRankHistorico(
     iv_media_periodo: ivMedia,
     iv_rank: round1(ivRank),
     iv_percentile: round1(ivPercentile),
-    classificacao: nivel,
-    sinal_operacional: sinal,
     historico_insuficiente,
     dias_disponiveis: diasDisponiveis,
     ...(aviso ? { aviso } : {}),
     multi_periodo,
-    consenso,
-    consenso_sinal,
-    consenso_confianca,
     alerta_evento,
     ...(alerta_evento_msg ? { alerta_evento_msg } : {}),
     cache_hit: false,
@@ -449,27 +392,17 @@ export interface IVRankBulkResult {
   cache_hits: number;
   api_calls: number;
   tempo_execucao_ms: number;
-  resumo: { muito_alta: number; alta: number; media: number; baixa: number };
   ranking: Array<{
     posicao: number;
     ticker: string;
     iv_rank: number;
     iv_atual: number;
-    classificacao: string;
-    sinal_operacional: string;
+    iv_rank_63d: number;
+    iv_rank_252d: number;
+    historico_insuficiente: boolean;
+    alerta_evento: boolean;
     cache_hit: boolean;
   }>;
-  triagem: {
-    prontos_para_operar: Array<{
-      ticker: string;
-      iv_rank_63d: number;
-      consenso: string;
-      consenso_confianca: string;
-      alerta_evento: boolean;
-    }>;
-    verificar_antes: Array<{ ticker: string; motivo: string }>;
-    descartar: Array<{ ticker: string; motivo: string }>;
-  };
   erros?: Array<{ ticker: string; erro: string }>;
 }
 
@@ -521,48 +454,21 @@ export async function getIVRankBulk(
   // 3) ordenar por iv_rank decrescente
   results.sort((a, b) => b.iv_rank - a.iv_rank);
 
-  const resumo = { muito_alta: 0, alta: 0, media: 0, baixa: 0 };
-  for (const r of results) {
-    if (r.classificacao === "MUITO_ALTA") resumo.muito_alta++;
-    else if (r.classificacao === "ALTA") resumo.alta++;
-    else if (r.classificacao === "MEDIA") resumo.media++;
-    else resumo.baixa++;
-  }
-
+  // Números crus por ativo — inclui iv_rank_63d/iv_rank_252d para a divergência
+  // entre janelas ficar visível como FATO (não é veredito: é dado para quem
+  // chama comparar). Classificação e triagem prontas foram removidas — a
+  // decisão (e o limiar) fica com quem consome o resultado.
   const ranking = results.map((r, i) => ({
     posicao: i + 1,
     ticker: r.ticker,
     iv_rank: r.iv_rank,
     iv_atual: r.iv_atual,
-    classificacao: r.classificacao,
-    sinal_operacional: r.sinal_operacional,
+    iv_rank_63d: r.multi_periodo.iv_rank_63d,
+    iv_rank_252d: r.multi_periodo.iv_rank_252d,
+    historico_insuficiente: r.historico_insuficiente,
+    alerta_evento: r.alerta_evento,
     cache_hit: r.cache_hit,
   }));
-
-  // Ajuste 4 — triagem automática por consenso/alertas.
-  const triagem: IVRankBulkResult["triagem"] = {
-    prontos_para_operar: [],
-    verificar_antes: [],
-    descartar: [],
-  };
-  for (const r of results) {
-    if (r.historico_insuficiente) {
-      triagem.descartar.push({ ticker: r.ticker, motivo: `INSUFICIENTE — apenas ${r.dias_disponiveis} dias úteis` });
-    } else if (r.consenso_confianca === "BAIXA" || r.alerta_evento) {
-      const motivo = r.alerta_evento
-        ? "ALERTA_EVENTO — IV 2x acima da média"
-        : `DIVERGENTE — 252d=${round1(r.multi_periodo.iv_rank_252d)}% vs 63d=${round1(r.multi_periodo.iv_rank_63d)}%`;
-      triagem.verificar_antes.push({ ticker: r.ticker, motivo });
-    } else if (r.consenso_confianca === "ALTA" && (r.consenso === "MUITO_ALTA" || r.consenso === "ALTA")) {
-      triagem.prontos_para_operar.push({
-        ticker: r.ticker,
-        iv_rank_63d: r.multi_periodo.iv_rank_63d,
-        consenso: r.consenso,
-        consenso_confianca: r.consenso_confianca,
-        alerta_evento: r.alerta_evento,
-      });
-    }
-  }
 
   return {
     periodo_dias: periodo,
@@ -571,9 +477,7 @@ export async function getIVRankBulk(
     cache_hits: cacheHits,
     api_calls: toFetch.length,
     tempo_execucao_ms: Date.now() - start,
-    resumo,
     ranking,
-    triagem,
     ...(errors.length ? { erros: errors } : {}),
   };
 }
