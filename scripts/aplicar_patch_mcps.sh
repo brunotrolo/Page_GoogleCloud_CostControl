@@ -17,15 +17,15 @@ deploy_flags=(--region us-east1 --cpu=1 --memory=512Mi --timeout=120 \
 
 # ---------------------- oplab_mcp ----------------------
 echo "==> 1/2 oplab_mcp"
-git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/oplab_mcp.git
-cp "$PATCHES/oplab_mcp/index.ts" "$WORK/oplab_mcp/src/index.ts"
-git -C "$WORK/oplab_mcp" config user.email "actions@github.com"
-git -C "$WORK/oplab_mcp" config user.name  "cost-fix-bot"
-if ! git -C "$WORK/oplab_mcp" diff --quiet; then
-  git -C "$WORK/oplab_mcp" commit -am "fix: SSE -> Streamable HTTP stateless (corta custo de CPU)"
-  git -C "$WORK/oplab_mcp" push
+git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/MCP_OplabAPI.git
+cp "$PATCHES/oplab_mcp/index.ts" "$WORK/MCP_OplabAPI/src/index.ts"
+git -C "$WORK/MCP_OplabAPI" config user.email "actions@github.com"
+git -C "$WORK/MCP_OplabAPI" config user.name  "cost-fix-bot"
+if ! git -C "$WORK/MCP_OplabAPI" diff --quiet; then
+  git -C "$WORK/MCP_OplabAPI" commit -am "fix: SSE -> Streamable HTTP stateless (corta custo de CPU)"
+  git -C "$WORK/MCP_OplabAPI" push
 fi
-gcloud run deploy oplab-mcp-server --source "$WORK/oplab_mcp" \
+gcloud run deploy oplab-mcp-server --source "$WORK/MCP_OplabAPI" \
   --project oplab-mcp-server "${deploy_flags[@]}"
 
 # ------------------- google-sheets-mcp -------------------

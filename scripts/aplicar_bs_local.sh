@@ -16,8 +16,8 @@ set -euo pipefail
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/patches/oplab_mcp"
 WORK="$(mktemp -d)"; cd "$WORK"
 
-git clone --depth 1 https://github.com/brunotrolo/oplab_mcp.git
-cd oplab_mcp
+git clone --depth 1 https://github.com/brunotrolo/MCP_OplabAPI.git
+cd MCP_OplabAPI
 
 cp "$SRC/bs_engine.ts"                  src/utils/bs_engine.ts
 cp "$SRC/whitelist_source.ts"           src/utils/whitelist_source.ts
