@@ -51,7 +51,7 @@ Ser o sistema de suporte à decisão mais confiável para derivativos — automa
 - **Frequência:** real-time 5-10 min no pregão; pré-market 06:50; pós-market 17:35.
 
 ### MCP 2 — Google Sheets Derivativos (cockpit em nuvem)
-- `get_cockpit_ativas()` → 24 posições ativas (pula 9 primeiras linhas) · `get_screener_quantitativo()` · `get_correl_ibov()` · `get_maiores_volumes()` · `get_tendencia_m9m21()`.
+- `get_cockpit_ativas()` → 24 posições ativas (pula 9 primeiras linhas) · `get_correl_ibov()` · `get_maiores_volumes()` · `get_maiores_lucros()` · `get_tendencia_m9m21()`.
 - **Usos:** pull de posições p/ auditoria, cruzamento/validação com OpLab, histórico p/ backtest, pré-screening, correlação IBOV.
 - **Frequência:** daily 06:50; weekly sexta 15:00; on-demand.
 
