@@ -14,7 +14,7 @@ WORK="$(mktemp -d)"
 mkdir -p "$ROOT/analysis"
 
 echo "Clonando google-sheets-mcp..."
-git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/google-sheets-mcp.git >/dev/null 2>&1
+git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git >/dev/null 2>&1
 D="$WORK/google-sheets-mcp/files"
 if [ ! -d "$D" ]; then echo "Pasta files/ não encontrada"; exit 1; fi
 cd "$D"

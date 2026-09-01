@@ -47,7 +47,7 @@ te alertar no WhatsApp com confirmação de entrega.
 | | **OpLab** | **Cockpit** | **WhatsApp** |
 |---|---|---|---|
 | Função | Mercado, gregas, IV Rank, estrutura, backtests, manejo | Carteira/posições e risco (lê a planilha) | Enviar alertas / receber comandos |
-| Repo do código | `brunotrolo/oplab_mcp` | `brunotrolo/google-sheets-mcp` | `brunotrolo/WhatsApp_MCP` |
+| Repo do código | `brunotrolo/oplab_mcp` | `brunotrolo/MCP_ControleOpcoes` | `brunotrolo/WhatsApp_MCP` |
 | Projeto GCP | `oplab-mcp-server` | `oplab-sheets-mcp-project` | `whatsapp-mcp-server-502704` |
 | Serviço GCP | Cloud Run `oplab-mcp-server` | Cloud Run `oplab-sheets-mcp` | Compute Engine VM `whatsapp-mcp-vm` |
 | Região | us-east1 | us-east1 | us-east1-b |
@@ -95,13 +95,13 @@ free tier. É request/response? → Cloud Run com as 6 regras. Na dúvida, Cloud
 
 ## 4. Como o código é versionado e deployado
 
-O código-fonte de cada MCP vive em **repositório próprio** (`oplab_mcp`, `google-sheets-mcp`,
+O código-fonte de cada MCP vive em **repositório próprio** (`oplab_mcp`, `MCP_ControleOpcoes`,
 `WhatsApp_MCP`). Editamos **cópias** em `patches/<mcp>/` **dentro deste repo** e publicamos com
 scripts rodados no **Cloud Shell** — nunca editamos os repos dos MCPs à mão.
 
 ```
 patches/oplab_mcp/           → scripts/aplicar_*.sh        → github.com/brunotrolo/oplab_mcp → Cloud Run
-patches/google-sheets-mcp/   → scripts/aplicar_sheets_*.sh → github.com/brunotrolo/google-sheets-mcp → Cloud Run
+patches/google-sheets-mcp/   → scripts/aplicar_sheets_*.sh → github.com/brunotrolo/MCP_ControleOpcoes → Cloud Run
 patches/whatsapp_mcp/        → scripts/aplicar_whatsapp_mcp.sh → github.com/brunotrolo/WhatsApp_MCP → VM
 ```
 

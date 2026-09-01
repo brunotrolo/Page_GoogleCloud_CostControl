@@ -9,7 +9,7 @@ set -euo pipefail
 
 WORK="$(mktemp -d)"
 cd "$WORK"
-git clone --depth 1 https://github.com/brunotrolo/google-sheets-mcp.git
+git clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git
 cd google-sheets-mcp
 
 if grep -q "'/health'" src/index.ts; then

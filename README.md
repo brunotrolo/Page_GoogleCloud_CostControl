@@ -25,7 +25,7 @@ te alertar no WhatsApp. Detalhes em [`docs/mcp-conectores-e-deploy.md`](docs/mcp
 e [`docs/whatsapp-mcp-arquitetura.md`](docs/whatsapp-mcp-arquitetura.md).
 
 **Código dos MCPs** (cópias versionadas): [`patches/`](patches/) · **Deploy**: [`scripts/`](scripts/)
-(rodados no Cloud Shell). Repos de origem: `brunotrolo/oplab_mcp`, `brunotrolo/google-sheets-mcp`,
+(rodados no Cloud Shell). Repos de origem: `brunotrolo/oplab_mcp`, `brunotrolo/MCP_ControleOpcoes`,
 `brunotrolo/WhatsApp_MCP`.
 
 ### Por que ~R$0/mês

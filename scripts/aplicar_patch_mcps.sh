@@ -30,7 +30,7 @@ gcloud run deploy oplab-mcp-server --source "$WORK/oplab_mcp" \
 
 # ------------------- google-sheets-mcp -------------------
 echo "==> 2/2 google-sheets-mcp"
-git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/google-sheets-mcp.git
+git -C "$WORK" clone --depth 1 https://github.com/brunotrolo/MCP_ControleOpcoes.git
 cp "$PATCHES/google-sheets-mcp/index.ts" "$WORK/google-sheets-mcp/src/index.ts"
 ( cd "$WORK/google-sheets-mcp" && npm pkg set 'dependencies.@modelcontextprotocol/sdk=^1.12.1' )
 git -C "$WORK/google-sheets-mcp" config user.email "actions@github.com"
