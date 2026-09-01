@@ -471,7 +471,7 @@ const TOOL_REGISTRY: ToolDef[] = [
   {
     name: "get_analise_estrutura",
     description:
-      "Analisar a ESTRUTURA de preço de um ticker a partir do OHLC histórico e classificar a FASE atual (ALTA / BAIXA / LATERAL / TRANSIÇÃO), antecipando viradas que o M9/M21 confirma tarde. Entrega números crus e determinísticos — NÃO dá sinal de compra/venda nem prevê o futuro, só classificação factual da estrutura. Calcula: swings (últimos 3 topos/fundos, pivôs janela 3), fundos/topos ascendentes, fase por janelas de 15 candles (amplitude<4%=LATERAL, inclinação>3%=ALTA, <-3%=BAIXA), rompimento vs máx/mín de 20 candles (com pct), confirmação por volume (último vs média 20d), flag TRANSIÇÃO (fase anterior lateral + rompimento recente + volume confirma) com direção, e contexto M9/M21 com dias de antecipação da estrutura vs o cruzamento das médias. Mesmas regras do get_analise_manejo: pelo close a qualquer hora, sem gerenciar patrimônio, determinístico.",
+      "Analisar a ESTRUTURA de preço de um ticker a partir do OHLC histórico: números crus e determinísticos — NÃO dá sinal de compra/venda, não prevê o futuro, e NÃO classifica em fase pronta (ALTA/BAIXA/LATERAL/TRANSIÇÃO) nem em tendência (ALTA_ESTRUTURAL/BAIXA_ESTRUTURAL) — isso é regra de corte por limiar, decisão de quem chama. Calcula: swings (últimos 3 topos/fundos, pivôs janela 3) + fundos_ascendentes/topos_ascendentes (booleanos crus), amplitude e inclinação por janela de 15 candles (fase_recente/fase_anterior, só números — sem rótulo), rompimento vs máx/mín de 20 candles (com pct), confirmação por volume (último vs média 20d), transicao_detectada + direção (fato: fase anterior lateral + rompimento recente + volume confirma), e contexto M9/M21 com dias de antecipação da estrutura vs o cruzamento das médias. Mesmas regras do get_analise_manejo: pelo close a qualquer hora, sem gerenciar patrimônio, determinístico.",
     properties: {
       symbol:        { type: "string",  description: "Código do ativo (ex: PSSA3). OBRIGATÓRIO." },
       lookback_days: { type: "integer", description: "Janela de histórico em dias corridos (padrão: 90; mínimo efetivo 30 candles)." },
@@ -490,6 +490,8 @@ const TOOL_REGISTRY: ToolDef[] = [
       delta_alvo:     { type: "number",  description: "Delta alvo da PUT vendida (padrão: -0.25)." },
       use_spread:     { type: "boolean", description: "Simular trava Bull Put Spread (perda limitada) em vez de PUT seca. Padrão: true." },
       incluir_operacoes: { type: "boolean", description: "Se true, adiciona ao resultado a lista 'operacoes' com CADA trade individual (data de entrada, strike, prêmio, delta, DTE, vencimento, spot no vencimento, resultado, P&L e flags point-in-time). Para auditoria/reconstrução independente. Padrão: false." },
+      n_min_coorte: { type: "integer", description: "Tamanho mínimo de amostra (nº de operações) para uma coorte ser considerada relevante. Só REPORTADO em parametros.n_min_coorte — a ferramenta não aplica esse filtro nem decide edge. Padrão: 30." },
+      lift_min_pp:  { type: "number",  description: "Lift mínimo (em pontos percentuais de win rate vs baseline) para considerar uma coorte relevante. Só REPORTADO em parametros.lift_min_pp — a ferramenta não decide edge, isso é da skill. Padrão: 5." },
     },
     required: [],
     handler: (client, a) => getBacktestEstrutural(client, a),
