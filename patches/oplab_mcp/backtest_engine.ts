@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
-// Backtest engine — simulação histórica do "Protocolo 2" (venda de PUTs OTM).
+// Backtest engine — motor de simulação histórica de venda de PUTs OTM (venda a
+// seco ou trava Bull Put Spread), reusado por get_backtest_estrutural (cohort
+// "protocolo2_padrao" reproduz a antiga get_backtest_protocolo2, removida).
 //
 // Arquivo SEPARADO de src/index.ts: toda a lógica de backtesting vive aqui para
-// manter o index.ts enxuto e o transporte SSE estável (ver CLAUDE.md). O index.ts
-// apenas registra a ferramenta 32 (get_backtest_protocolo2) com um `handler`.
+// manter o index.ts enxuto e o transporte SSE estável (ver CLAUDE.md).
 //
 // ⚠️ Ferramenta ANALÍTICA — apenas simula operações sobre dados históricos.
 //    Não executa nenhuma ordem real.
@@ -26,18 +27,9 @@ import { calcRetornosLog, calcVolatilidade21d, calcIVRank, batchWithLimit, WHITE
 const MARGIN_STRESS_FACTOR = 0.22;
 const CONTRACT_SIZE = 100;
 
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h — backtest histórico não muda
-const PER_TICKER_BUDGET_MS = 10_000;       // timeout/orçamento por ativo
 const REQUEST_TIMEOUT_MS = 10_000;         // timeout por chamada HTTP
 const MAX_PERIOD_DAYS = 730;               // 2 anos (limitação #5)
 const MAX_PREV_DAY_RETRIES = 3;            // limitação #1
-
-const backtestCache = new Map<string, { data: BacktestResult; timestamp: number }>();
-
-/** Limpa o cache de backtest (usado em testes). */
-export function clearBacktestCache(): void {
-  backtestCache.clear();
-}
 
 // ── Helpers numéricos / datas ────────────────────────────────────────────────
 
@@ -134,56 +126,6 @@ export interface SimOp {
   premio_protecao?: number;
   premio_liquido?: number;
   perda_maxima?: number;
-}
-
-interface VariantAgg {
-  operacoes: number;
-  win_rate_pct: number;
-  pl_total: number;
-}
-
-export interface BacktestResult {
-  parametros: BacktestParams;
-  resumo_geral: {
-    total_operacoes: number;
-    wins: number;
-    losses: number;
-    win_rate_pct: number;
-    pl_total_estimado: number;
-    retorno_medio_por_op: number;
-    retorno_medio_sobre_margem_pct: number;
-    maior_sequencia_wins: number;
-    maior_sequencia_losses: number;
-    cache_hit: boolean;
-    tempo_execucao_ms: number;
-  };
-  comparativo_filtros: {
-    com_todos_filtros: VariantAgg;
-    sem_iv_rank: VariantAgg;
-    sem_m9m21: VariantAgg;
-    sem_nenhum_filtro: VariantAgg;
-  };
-  por_ativo: Array<{
-    ticker: string;
-    operacoes: number;
-    wins: number;
-    losses: number;
-    win_rate_pct: number;
-    pl_total: number;
-    melhor_op: { data: string; pl: number } | null;
-    pior_op: { data: string; pl: number } | null;
-  }>;
-  por_mes: Array<{
-    mes: string;
-    operacoes: number;
-    wins: number;
-    losses: number;
-    win_rate_pct: number;
-    pl_mes: number;
-    capital_acumulado: number;
-  }>;
-  curva_capital: Array<{ data: string; pl_acumulado: number }>;
-  alertas: string[];
 }
 
 // ── Parsing das respostas da OpLab ────────────────────────────────────────────
@@ -382,7 +324,7 @@ export function simulate(
 
 // ── Walk de entradas para uma combinação de filtros ───────────────────────────
 
-interface FilterToggles {
+export interface FilterToggles {
   useIvRank: boolean;
   useM9m21: boolean;
 }
@@ -397,7 +339,7 @@ function indexOnOrAfter(dates: string[], target: string): number {
  * (não abre nova operação enquanto há uma pendente). Reutiliza `getChain`
  * (memoizado) para as cadeias de opções.
  */
-async function runVariant(
+export async function runVariant(
   ticker: string,
   candles: Candle[],
   ind: { vol21: number[]; ivRank: number[]; m9m21: number[] },
@@ -437,44 +379,54 @@ async function runVariant(
   return ops;
 }
 
-// ── Backtest de um ativo (roda as 4 variantes de filtro) ──────────────────────
-
-interface TickerResult {
-  ticker: string;
-  status: "OK" | "TIMEOUT" | "SEM_DADOS";
-  variantes: { todos: SimOp[]; sem_iv: SimOp[]; sem_m9: SimOp[]; nenhum: SimOp[] };
+export interface SerieEChain {
+  candles: Candle[];
+  ind: { vol21: number[]; ivRank: number[]; m9m21: number[] };
+  getChain: (date: string) => Promise<OptionRow[] | null>;
   alertas: string[];
 }
 
-async function backtestTicker(client: AxiosInstance, ticker: string, p: BacktestParams): Promise<TickerResult> {
+/**
+ * Prepara a série de preços + indicadores + chain-fetcher memoizado de um
+ * ticker — a parte cara e compartilhável do backtest (1 chamada de histórico +
+ * cache de cadeia de opções por data), para ser reusada por outros motores de
+ * backtest sem duplicar a lógica de fetch/retry (ex.: get_backtest_estrutural
+ * reusa isto para o cohort protocolo2_padrao, que consolidou a antiga
+ * get_backtest_protocolo2 — removida como ferramenta separada).
+ * Retorna `erro` se não houver histórico suficiente (nunca lança).
+ */
+export async function prepararSerieEChain(
+  client: AxiosInstance,
+  ticker: string,
+  dataInicio: string,
+  dataFim: string,
+  deadline: number
+): Promise<SerieEChain | { erro: string }> {
   const tk = ticker.toUpperCase();
-  const deadline = Date.now() + PER_TICKER_BUDGET_MS;
-  const empty = { todos: [], sem_iv: [], sem_m9: [], nenhum: [] };
   const alertas: string[] = [];
 
-  // 1) Série de preços (1 chamada)
   let candles: Candle[];
   try {
     const { data } = await client.get(`/market/historical/${tk}/1d`, {
-      params: { from: p.data_inicio, to: p.data_fim },
+      params: { from: dataInicio, to: dataFim },
       timeout: REQUEST_TIMEOUT_MS,
     });
     candles = extractCandles(data);
   } catch {
-    return { ticker: tk, status: "TIMEOUT", variantes: empty, alertas: [`${tk}: sem resposta da API de histórico (TIMEOUT)`] };
+    return { erro: `${tk}: sem resposta da API de histórico (TIMEOUT)` };
   }
   if (candles.length < 22) {
-    return { ticker: tk, status: "SEM_DADOS", variantes: empty, alertas: [`${tk}: histórico insuficiente (${candles.length} candles)`] };
+    return { erro: `${tk}: histórico insuficiente (${candles.length} candles)` };
   }
-  if (candles[0].date > p.data_inicio.slice(0, 10)) {
+  if (candles[0].date > dataInicio.slice(0, 10)) {
     alertas.push(`${tk}: dados históricos disponíveis apenas a partir de ${candles[0].date}`);
   }
 
   const closes = candles.map((c) => c.close);
   const ind = buildIndicators(closes);
 
-  // Cadeia de opções memoizada por data (compartilhada entre as 4 variantes).
-  // null = tentou e não há dados; ausente = ainda não buscado.
+  // Cadeia de opções memoizada por data (compartilhada entre variantes/cohorts
+  // que reusem esta mesma preparação).
   const chainMemo = new Map<string, OptionRow[] | null>();
   const getChain = async (date: string): Promise<OptionRow[] | null> => {
     if (chainMemo.has(date)) return chainMemo.get(date)!;
@@ -499,212 +451,9 @@ async function backtestTicker(client: AxiosInstance, ticker: string, p: Backtest
     return null;
   };
 
-  const todos = await runVariant(tk, candles, ind, p, { useIvRank: true, useM9m21: p.m9m21_filter }, getChain, deadline);
-  const sem_iv = await runVariant(tk, candles, ind, p, { useIvRank: false, useM9m21: p.m9m21_filter }, getChain, deadline);
-  const sem_m9 = await runVariant(tk, candles, ind, p, { useIvRank: true, useM9m21: false }, getChain, deadline);
-  const nenhum = await runVariant(tk, candles, ind, p, { useIvRank: false, useM9m21: false }, getChain, deadline);
-
-  const status: TickerResult["status"] = Date.now() > deadline ? "TIMEOUT" : "OK";
-  if (todos.length > 0 && todos.length < 4) {
-    alertas.push(`${tk}: apenas ${todos.length} operações no período (histórico insuficiente)`);
-  }
-  return { ticker: tk, status, variantes: { todos, sem_iv, sem_m9, nenhum }, alertas };
+  return { candles, ind, getChain, alertas };
 }
 
-// ── Agregações ────────────────────────────────────────────────────────────────
-
-function aggVariant(ops: SimOp[]): VariantAgg {
-  const wins = ops.filter((o) => o.resultado === "WIN").length;
-  const pl = ops.reduce((s, o) => s + o.pl, 0);
-  return {
-    operacoes: ops.length,
-    win_rate_pct: ops.length ? round1((wins / ops.length) * 100) : 0,
-    pl_total: round2(pl),
-  };
-}
-
-function streaks(ops: SimOp[]): { wins: number; losses: number } {
-  const ordered = [...ops].sort((a, b) => a.entrada_date.localeCompare(b.entrada_date));
-  let maxW = 0, maxL = 0, curW = 0, curL = 0;
-  for (const o of ordered) {
-    if (o.resultado === "WIN") { curW++; curL = 0; maxW = Math.max(maxW, curW); }
-    else { curL++; curW = 0; maxL = Math.max(maxL, curL); }
-  }
-  return { wins: maxW, losses: maxL };
-}
-
-// ── Normalização de parâmetros ────────────────────────────────────────────────
-
-function num(v: unknown, def: number): number {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : def;
-}
-
-export function normalizarBacktestParams(a: Record<string, unknown>): { params: BacktestParams; avisoPeriodo?: string } {
-  const tickers =
-    Array.isArray(a.tickers) && a.tickers.length ? a.tickers.map((t) => String(t).toUpperCase()) : [...WHITELIST_24];
-
-  const hoje = new Date();
-  const doisAnosAtras = new Date(hoje.getTime() - MAX_PERIOD_DAYS * DAY_MS);
-  let data_fim = typeof a.data_fim === "string" && a.data_fim ? a.data_fim.slice(0, 10) : fmtDate(hoje);
-  let data_inicio =
-    typeof a.data_inicio === "string" && a.data_inicio ? a.data_inicio.slice(0, 10) : fmtDate(doisAnosAtras);
-
-  // Limitação #5: período máximo de 2 anos.
-  let avisoPeriodo: string | undefined;
-  const spanDays = (parseDate(data_fim).getTime() - parseDate(data_inicio).getTime()) / DAY_MS;
-  if (spanDays > MAX_PERIOD_DAYS) {
-    data_inicio = fmtDate(new Date(parseDate(data_fim).getTime() - MAX_PERIOD_DAYS * DAY_MS));
-    avisoPeriodo = "Período limitado a 2 anos para evitar timeout. Ajustando data_inicio.";
-  }
-
-  const periodo_dias = Math.round((parseDate(data_fim).getTime() - parseDate(data_inicio).getTime()) / DAY_MS);
-
-  return {
-    params: {
-      tickers,
-      data_inicio,
-      data_fim,
-      delta_min: num(a.delta_min, -0.3),
-      delta_max: num(a.delta_max, -0.15),
-      dte_min: Math.round(num(a.dte_min, 15)),
-      dte_max: Math.round(num(a.dte_max, 30)),
-      iv_rank_min: Math.round(num(a.iv_rank_min, 50)),
-      m9m21_filter: a.m9m21_filter === undefined ? true : Boolean(a.m9m21_filter),
-      use_spread: a.use_spread === undefined ? false : Boolean(a.use_spread),
-      spread_width: Math.max(0.01, num(a.spread_width, 3.0)),
-      periodo_dias,
-    },
-    avisoPeriodo,
-  };
-}
-
-// ── Orquestração principal ────────────────────────────────────────────────────
-
-export async function getBacktestProtocolo2(client: AxiosInstance, args: Record<string, unknown>): Promise<BacktestResult> {
-  const start = Date.now();
-  const { params, avisoPeriodo } = normalizarBacktestParams(args);
-
-  // Cache de 24h por parâmetros.
-  const cacheKey = `backtest_${params.tickers.join(",")}_${params.data_inicio}_${params.data_fim}_${params.delta_min}_${params.delta_max}_${params.dte_min}_${params.dte_max}_${params.iv_rank_min}_${params.m9m21_filter}_${params.use_spread}_${params.spread_width}`;
-  const cached = backtestCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return {
-      ...cached.data,
-      resumo_geral: { ...cached.data.resumo_geral, cache_hit: true, tempo_execucao_ms: Date.now() - start },
-    };
-  }
-
-  // Lotes de 3 ativos com 500ms entre lotes (mais conservador que iv_rank_bulk).
-  const resultados = await batchWithLimit(params.tickers, (tk) => backtestTicker(client, tk, params), 3, 500);
-
-  // Consolida operações (variante "todos os filtros" é a oficial).
-  const opsTodos: SimOp[] = [];
-  const opsSemIv: SimOp[] = [];
-  const opsSemM9: SimOp[] = [];
-  const opsNenhum: SimOp[] = [];
-  const alertas: string[] = [];
-  if (avisoPeriodo) alertas.push(avisoPeriodo);
-
-  const por_ativo: BacktestResult["por_ativo"] = [];
-
-  for (const r of resultados) {
-    opsTodos.push(...r.variantes.todos);
-    opsSemIv.push(...r.variantes.sem_iv);
-    opsSemM9.push(...r.variantes.sem_m9);
-    opsNenhum.push(...r.variantes.nenhum);
-    alertas.push(...r.alertas);
-
-    const ops = r.variantes.todos;
-    const wins = ops.filter((o) => o.resultado === "WIN").length;
-    const melhor = ops.reduce<SimOp | null>((b, o) => (!b || o.pl > b.pl ? o : b), null);
-    const pior = ops.reduce<SimOp | null>((b, o) => (!b || o.pl < b.pl ? o : b), null);
-    por_ativo.push({
-      ticker: r.ticker,
-      operacoes: ops.length,
-      wins,
-      losses: ops.length - wins,
-      win_rate_pct: ops.length ? round1((wins / ops.length) * 100) : 0,
-      pl_total: round2(ops.reduce((s, o) => s + o.pl, 0)),
-      melhor_op: melhor ? { data: melhor.entrada_date, pl: melhor.pl } : null,
-      pior_op: pior ? { data: pior.entrada_date, pl: pior.pl } : null,
-    });
-  }
-  por_ativo.sort((a, b) => b.pl_total - a.pl_total);
-
-  // resumo_geral
-  const wins = opsTodos.filter((o) => o.resultado === "WIN").length;
-  const losses = opsTodos.length - wins;
-  const plTotal = opsTodos.reduce((s, o) => s + o.pl, 0);
-  const retMargem = opsTodos.length
-    ? opsTodos.reduce((s, o) => s + o.retorno_margem_pct, 0) / opsTodos.length
-    : 0;
-  const st = streaks(opsTodos);
-
-  // por_mes (agrupado pelo mês de ENTRADA) + curva de capital (pelo VENCIMENTO)
-  const porMesMap = new Map<string, { ops: number; wins: number; losses: number; pl: number }>();
-  for (const o of opsTodos) {
-    const mes = o.entrada_date.slice(0, 7);
-    const e = porMesMap.get(mes) ?? { ops: 0, wins: 0, losses: 0, pl: 0 };
-    e.ops++;
-    if (o.resultado === "WIN") e.wins++; else e.losses++;
-    e.pl += o.pl;
-    porMesMap.set(mes, e);
-  }
-  let acumMes = 0;
-  const por_mes = [...porMesMap.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([mes, e]) => {
-      acumMes += e.pl;
-      return {
-        mes,
-        operacoes: e.ops,
-        wins: e.wins,
-        losses: e.losses,
-        win_rate_pct: e.ops ? round1((e.wins / e.ops) * 100) : 0,
-        pl_mes: round2(e.pl),
-        capital_acumulado: round2(acumMes),
-      };
-    });
-
-  let acum = 0;
-  const curva_capital = [...opsTodos]
-    .sort((a, b) => a.expiry_date.localeCompare(b.expiry_date))
-    .map((o) => {
-      acum += o.pl;
-      return { data: o.expiry_date, pl_acumulado: round2(acum) };
-    });
-
-  const result: BacktestResult = {
-    parametros: params,
-    resumo_geral: {
-      total_operacoes: opsTodos.length,
-      wins,
-      losses,
-      win_rate_pct: opsTodos.length ? round1((wins / opsTodos.length) * 100) : 0,
-      pl_total_estimado: round2(plTotal),
-      retorno_medio_por_op: opsTodos.length ? round2(plTotal / opsTodos.length) : 0,
-      retorno_medio_sobre_margem_pct: round1(retMargem),
-      maior_sequencia_wins: st.wins,
-      maior_sequencia_losses: st.losses,
-      cache_hit: false,
-      tempo_execucao_ms: Date.now() - start,
-    },
-    comparativo_filtros: {
-      com_todos_filtros: aggVariant(opsTodos),
-      sem_iv_rank: aggVariant(opsSemIv),
-      sem_m9m21: aggVariant(opsSemM9),
-      sem_nenhum_filtro: aggVariant(opsNenhum),
-    },
-    por_ativo,
-    por_mes,
-    curva_capital,
-    alertas,
-  };
-
-  backtestCache.set(cacheKey, { data: result, timestamp: Date.now() });
-  return result;
-}
 
 // ===========================================================================
 // Backtest QUANTITATIVO — venda contínua de PUTs (Short Put / "The Wheel")

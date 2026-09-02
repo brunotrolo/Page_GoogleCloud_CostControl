@@ -5,7 +5,7 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 import axios, { AxiosInstance } from "axios";
 import { getIVRankHistorico, getIVRankBulk, normalizarPeriodo, sincronizarWhitelist } from "./utils/iv_calculator.js";
 import { precificarLocalSePossivel } from "./utils/bs_engine.js";
-import { getBacktestProtocolo2, runQuantBacktest } from "./utils/backtest_engine.js";
+import { runQuantBacktest } from "./utils/backtest_engine.js";
 import { getSmartMoneyTracker } from "./utils/smart_money_tracker.js";
 import { getOportunidadesMensais } from "./utils/opportunity_engine.js";
 import { getAnaliseManejo } from "./utils/manejo_engine.js";
@@ -366,27 +366,6 @@ const TOOL_REGISTRY: ToolDef[] = [
     handler: (client, a) => getIVRankBulk(client, a.tickers as string[] | undefined, normalizarPeriodo(a.periodo)),
   },
 
-  // ── Backtesting — Protocolo 2 (venda de PUTs OTM) ───────────────────────────
-  {
-    name: "get_backtest_protocolo2",
-    description:
-      "Ferramenta ANALÍTICA (apenas simula — não executa ordens reais). Faz backtesting histórico do Protocolo 2 (venda de PUTs OTM) sobre dados da OpLab: para cada dia útil aplica os filtros IV Rank, tendência M9/M21 e seleciona a PUT candidata (delta e DTE no range), simulando o resultado no vencimento. Com use_spread=true, simula trava Bull Put Spread (perda limitada) em vez de PUT a descoberto. Retorna resumo geral, comparativo de filtros (prova estatística do valor do protocolo), desempenho por ativo, por mês e curva de capital. Sem 'tickers', usa a whitelist padrão de 26 ativos (espelho da aba DADOS_ATIVOS). Cache de 24h; lotes de 3 ativos com 500ms entre lotes; período máximo de 2 anos.",
-    properties: {
-      tickers:      { type: "array",   description: "Lista de códigos (ex: [\"VALE3\",\"PETR4\"]). Se omitido, usa a whitelist padrão de 26 ativos (aba DADOS_ATIVOS).", items: { type: "string" } },
-      data_inicio:  { type: "string",  description: "Data inicial YYYY-MM-DD. Padrão: 2 anos atrás." },
-      data_fim:     { type: "string",  description: "Data final YYYY-MM-DD. Padrão: hoje." },
-      delta_min:    { type: "number",  description: "Delta mínimo (mais negativo) da PUT. Padrão: -0.30" },
-      delta_max:    { type: "number",  description: "Delta máximo (menos negativo) da PUT. Padrão: -0.15" },
-      dte_min:      { type: "integer", description: "Dias até o vencimento mínimo. Padrão: 15" },
-      dte_max:      { type: "integer", description: "Dias até o vencimento máximo. Padrão: 30" },
-      iv_rank_min:  { type: "integer", description: "IV Rank mínimo no dia da entrada. Padrão: 50" },
-      m9m21_filter: { type: "boolean", description: "Se true, exige tendência de alta (M9/M21 >= 1.0). Padrão: true" },
-      use_spread:   { type: "boolean", description: "Se true, simula trava Bull Put Spread (perda máxima limitada) em vez de PUT a descoberto. Padrão: false" },
-      spread_width: { type: "number",  description: "Largura alvo da trava em R$ (distância entre o strike vendido e o comprado). Padrão: 3.00. Só usado quando use_spread=true." },
-    },
-    required: [],
-    handler: (client, a) => getBacktestProtocolo2(client, a),
-  },
 
   // ── Plano mensal de travas Bull Put Spread ──────────────────────────────────
   {
@@ -482,7 +461,7 @@ const TOOL_REGISTRY: ToolDef[] = [
   {
     name: "get_backtest_estrutural",
     description:
-      "Backtest EMPÍRICO: filtrar entradas pela ESTRUTURA de preço melhora o win rate sobre o baseline? Para cada ticker e cada ciclo mensal, reconstrói o estado estrutural (mesma lógica de get_analise_estrutura) usando SÓ candles até a data de entrada (ZERO look-ahead), simula a venda de PUT/trava com a cadeia de opções histórica real, apura no vencimento e compara COORTES (baseline, apenas_iv, apenas_m9m21, apenas_alta_estrutural, alta_estrutural_e_iv, apenas_transicao, rompimento_com_volume, full_stack) por win rate, P&L médio, desvio-padrão e sharpe simplificado. Retorna só os números brutos de cada coorte — NÃO decide se há edge (isso é da skill, comparando lift vs baseline e tamanho de amostra contra os limiares retornados em parametros.lift_min_pp e parametros.n_min_coorte). Determinístico. Não é sinal de compra/venda.",
+      "Backtest EMPÍRICO: filtrar entradas pela ESTRUTURA de preço melhora o win rate sobre o baseline? Para cada ticker e cada ciclo, reconstrói o estado estrutural (mesma lógica de get_analise_estrutura) usando SÓ candles até a data de entrada (ZERO look-ahead), simula a venda de PUT/trava com a cadeia de opções histórica real, apura no vencimento e compara COORTES (baseline, apenas_iv, apenas_m9m21, apenas_alta_estrutural, alta_estrutural_e_iv, apenas_transicao, rompimento_com_volume, full_stack, protocolo2_padrao) por win rate, P&L médio, desvio-padrão e sharpe simplificado. 'protocolo2_padrao' consolida a antiga get_backtest_protocolo2 (removida): regra FIXA e independente dos demais coortes — delta -0,30/-0,15, DTE 15/30, IV Rank>=50, M9/M21>=1,0 (parâmetros expostos em parametros.protocolo2_padrao) — simulada à parte, não é subconjunto do baseline; usa a mesma opção 'use_spread' (trava Bull Put Spread vs PUT a seco) do resto da chamada, preservando a comparação trava-vs-seca que a ferramenta antiga permitia. Retorna só os números brutos de cada coorte — NÃO decide se há edge (isso é da skill, comparando lift vs baseline e tamanho de amostra contra os limiares retornados em parametros.lift_min_pp e parametros.n_min_coorte). Determinístico. Não é sinal de compra/venda.",
     properties: {
       tickers:        { type: "array",   description: "Lista de códigos (ex: [\"VALE3\",\"PSSA3\"]). Se omitido, usa a whitelist padrão de 26 ativos (aba DADOS_ATIVOS)." },
       lookback_meses: { type: "integer", description: "Janela de histórico em meses (padrão: 24; teto 24)." },
