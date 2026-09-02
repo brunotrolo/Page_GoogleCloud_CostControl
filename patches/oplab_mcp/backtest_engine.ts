@@ -19,7 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import { AxiosInstance } from "axios";
-import { calcRetornosLog, calcVolatilidade21d, calcIVRank, batchWithLimit, WHITELIST_24 } from "./iv_calculator.js";
+import { calcRetornosLog, calcVolatilidade21d, calcIVRank } from "./iv_calculator.js";
 
 // ── Constantes ───────────────────────────────────────────────────────────────
 
