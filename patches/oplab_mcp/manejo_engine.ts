@@ -774,6 +774,12 @@ export async function getAnaliseManejo(client: AxiosInstance, args: Record<strin
       spot: round2(spot), m9_m21: isFinite(m9m21) ? round2(m9m21) : null, tendencia: isFinite(m9m21) ? (m9m21 >= 1 ? "ALTA" : "BAIXA") : "n/d",
       iv_implicita_atual: isFinite(ivImplicita) ? round2(ivImplicita) : null, vol_realizada_anualizada: temVolReal ? round2(volReal * 100) : null,
       alerta_vol: alertaVol, iv_rank_252d: ivRank, candles_historico: closes.length, mc_paths: p.mc_paths,
+      mc_metodologia: {
+        n_simulacoes: p.mc_paths,
+        modelo_precificacao: "GBM (Geometric Brownian Motion) — passos diários até o vencimento, sem tendência (drift só com a correção de variância; mediana do preço simulado fica no spot atual)",
+        seed_fixo: true,
+        volatilidade_usada: `Volatilidade REALIZADA anualizada (desvio-padrão dos log-retornos diários dos últimos ${Math.min(closes.length, Math.max(22, p.hist_days))} candles, anualizada por raiz de 252) — não usa IV implícita`,
+      },
     },
     estado_atual: {
       estrutura: protecaoPar ? "BULL_PUT_SPREAD" : (compradas.length ? "MULTI_PERNA" : "SHORT_PUT_SECO"),
