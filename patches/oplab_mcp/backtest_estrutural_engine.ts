@@ -19,7 +19,7 @@
 import { AxiosInstance } from "axios";
 import { WHITELIST_24, batchWithLimit } from "./iv_calculator.js";
 import { parseCandlesEstrutura, classificarEstrutura } from "./estrutura_engine.js";
-import { extractOptions, selectPut, selectProtective, simulate, buildIndicators, BacktestParams, OptionRow } from "./backtest_engine.js";
+import { extractOptions, selectPut, selectProtective, simulate, buildIndicators, BacktestParams, OptionRow, prepararSerieEChain, runVariant, SimOp } from "./backtest_engine.js";
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const PER_TICKER_BUDGET_MS = 14_000;
@@ -204,9 +204,34 @@ async function backtestTickerEstrutural(client: AxiosInstance, ticker: string, p
   return { ops, alertas };
 }
 
+// ── Cohort "protocolo2_padrao" — consolidação de get_backtest_protocolo2 ──────
+// Replica EXATAMENTE a regra fixa do antigo Protocolo 2 (delta -0,30/-0,15,
+// DTE 15/30, IV Rank>=50, M9/M21>=1.0 obrigatórios) como MAIS UM cohort desta
+// ferramenta, em vez de ferramenta separada. Diferente dos demais cohorts
+// (que são subconjuntos do baseline, aberto com delta_alvo/dte_alvo), esta
+// regra usa seu PRÓPRIO range de entrada — não dá para derivar por filtro
+// sobre o baseline, então roda como simulação independente por ticker,
+// reusando runVariant/prepararSerieEChain (mesmo motor do antigo tool: os
+// números batem exatamente com o que get_backtest_protocolo2 dava sozinha).
+const PROTOCOLO2_PADRAO_PARAMS: Omit<BacktestParams, "tickers" | "data_inicio" | "data_fim" | "use_spread" | "periodo_dias"> = {
+  delta_min: -0.30, delta_max: -0.15, dte_min: 15, dte_max: 30, iv_rank_min: 50, m9m21_filter: true, spread_width: 3.0,
+};
+
+async function backtestProtocolo2Padrao(
+  client: AxiosInstance, ticker: string, useSpread: boolean, dataInicio: string, dataFim: string
+): Promise<{ ops: SimOp[]; alertas: string[] }> {
+  const tk = ticker.toUpperCase();
+  const deadline = Date.now() + PER_TICKER_BUDGET_MS;
+  const prep = await prepararSerieEChain(client, tk, dataInicio, dataFim, deadline);
+  if ("erro" in prep) return { ops: [], alertas: [prep.erro] };
+  const bp: BacktestParams = { ...PROTOCOLO2_PADRAO_PARAMS, tickers: [tk], data_inicio: dataInicio, data_fim: dataFim, use_spread: useSpread, periodo_dias: 0 };
+  const ops = await runVariant(tk, prep.candles, prep.ind, bp, { useIvRank: true, useM9m21: true }, prep.getChain, deadline);
+  return { ops, alertas: prep.alertas };
+}
+
 interface Coorte { nome: string; n_operacoes: number; win_rate_pct: number; pl_total: number; pl_medio: number; pl_desvio_padrao: number; sharpe_simplificado: number; }
 
-function statsCoorte(nome: string, ops: EntryOp[]): Coorte {
+function statsCoorte(nome: string, ops: Array<{ resultado: "WIN" | "LOSS"; pl: number }>): Coorte {
   const n = ops.length;
   const wins = ops.filter((o) => o.resultado === "WIN").length;
   const pls = ops.map((o) => o.pl);
@@ -230,12 +255,23 @@ export async function getBacktestEstrutural(client: AxiosInstance, args: Record<
   const cached = estruturalCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) return cached.data;
 
-  const resultados = await batchWithLimit(p.tickers, (tk) => backtestTickerEstrutural(client, tk, p), 3, 400);
+  // Mesma janela (~24 meses por padrão) usada pelos cohorts estruturais e pelo
+  // protocolo2_padrao — um único período compartilhado por toda a chamada.
+  const hojeP2 = new Date();
+  const dataInicioP2 = fmtDate(new Date(hojeP2.getTime() - Math.round(p.lookback_meses * 30.4) * DAY_MS));
+  const dataFimP2 = fmtDate(hojeP2);
+
+  const [resultados, resultadosP2] = await Promise.all([
+    batchWithLimit(p.tickers, (tk) => backtestTickerEstrutural(client, tk, p), 3, 400),
+    batchWithLimit(p.tickers, (tk) => backtestProtocolo2Padrao(client, tk, p.use_spread, dataInicioP2, dataFimP2), 3, 400),
+  ]);
   const all: EntryOp[] = [];
   const alertas: string[] = [];
   for (const r of resultados) { all.push(...r.ops); alertas.push(...r.alertas); }
+  const opsProtocolo2: SimOp[] = [];
+  for (const r of resultadosP2) { opsProtocolo2.push(...r.ops); alertas.push(...r.alertas); }
 
-  if (all.length === 0) {
+  if (all.length === 0 && opsProtocolo2.length === 0) {
     return { erro: "DADOS_INCOMPLETOS", motivo: "nenhuma operação simulada (histórico/cadeia de opções indisponível)", alertas };
   }
 
@@ -251,6 +287,7 @@ export async function getBacktestEstrutural(client: AxiosInstance, args: Record<
     full_stack: all.filter((o) => isFinite(o.iv_rank) && o.iv_rank > 50 && o.estrutura_tendencia === "ALTA_ESTRUTURAL" && o.m9m21_ratio !== null && o.m9m21_ratio > 1.0),
   };
   const coortes: Coorte[] = Object.entries(f).map(([nome, ops]) => statsCoorte(nome, ops));
+  coortes.push(statsCoorte("protocolo2_padrao", opsProtocolo2));
 
   // ── por_ticker (baseline) ──
   const porTickerMap = new Map<string, EntryOp[]>();
@@ -280,13 +317,18 @@ export async function getBacktestEstrutural(client: AxiosInstance, args: Record<
   const result = {
     periodo: `${fmtDate(inicio)} a ${fmtDate(hoje)} (~${p.lookback_meses} meses)`,
     tickers_analisados: [...porTickerMap.keys()],
-    parametros: { dte_alvo: p.dte_alvo, delta_alvo: p.delta_alvo, use_spread: p.use_spread, n_min_coorte: p.n_min_coorte, lift_min_pp: p.lift_min_pp },
+    parametros: {
+      dte_alvo: p.dte_alvo, delta_alvo: p.delta_alvo, use_spread: p.use_spread, n_min_coorte: p.n_min_coorte, lift_min_pp: p.lift_min_pp,
+      // Regra fixa do cohort protocolo2_padrao — INDEPENDENTE de dte_alvo/delta_alvo
+      // acima (não é subconjunto do baseline, é simulação própria — ver base_calculo).
+      protocolo2_padrao: { ...PROTOCOLO2_PADRAO_PARAMS, use_spread: p.use_spread },
+    },
     coortes,
     por_ticker,
     ...(operacoes ? { operacoes } : {}),
     alertas,
     snapshot_timestamp: new Date().toISOString(),
-    base_calculo: "Backtest determinístico sobre OHLC + cadeia de opções histórica. ZERO look-ahead: estrutura e indicadores reconstruídos só com dados até a entrada. Coortes = subconjuntos do mesmo baseline. Não é sinal de compra/venda.",
+    base_calculo: "Backtest determinístico sobre OHLC + cadeia de opções histórica. ZERO look-ahead: estrutura e indicadores reconstruídos só com dados até a entrada. A maioria dos coortes é subconjunto do mesmo baseline (aberto com dte_alvo/delta_alvo) — exceção: 'protocolo2_padrao' roda como simulação PRÓPRIA e independente, com a regra fixa do antigo Protocolo 2 (delta -0,30/-0,15, DTE 15/30, IV Rank>=50, M9/M21>=1.0), consolidada aqui como mais um cohort em vez de ferramenta separada. Não é sinal de compra/venda.",
     nota_metodologica: "Win rate alto com desvio-padrão alto NÃO é edge. A ferramenta não declara edge — compare win_rate_pct de cada coorte vs baseline (lift) e confira n_operacoes contra parametros.n_min_coorte e o lift contra parametros.lift_min_pp antes de considerar a coorte relevante.",
   };
 
