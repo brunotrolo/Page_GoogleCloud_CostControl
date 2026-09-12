@@ -11,6 +11,7 @@ import { getOportunidadesMensais } from "./utils/opportunity_engine.js";
 import { getAnaliseManejo } from "./utils/manejo_engine.js";
 import { getAnaliseEstrutura } from "./utils/estrutura_engine.js";
 import { getBacktestEstrutural } from "./utils/backtest_estrutural_engine.js";
+import { getSimuladorVolatilidadeGarch } from "./utils/garch_engine.js";
 
 // ---------------------------------------------------------------------------
 // OpLab API client
@@ -474,6 +475,25 @@ const TOOL_REGISTRY: ToolDef[] = [
     },
     required: [],
     handler: (client, a) => getBacktestEstrutural(client, a),
+  },
+  {
+    name: "get_simulador_volatilidade_garch",
+    description:
+      "Estimar volatilidade CONDICIONAL via GARCH(1,1) (ajuste por máxima verossimilhança sobre log-retornos diários — captura volatility clustering, ao contrário da vol histórica simples de janela fixa) e simular o preço no vencimento via Monte Carlo usando essa vol variável dia-a-dia (não uma vol constante). Devolve probabilidade de exercício por strike (PUT: % de caminhos abaixo do strike; CALL: % acima) como ESTATÍSTICA COMPLEMENTAR — NÃO substitui o delta Black-Scholes do OpLab como métrica oficial de entrada; se 'delta_bs' vier em algum strike, apenas contrasta os dois números (campo divergencia_pp) e sinaliza quando a diferença passa de 'divergencia_relevante_pp', sem julgar qual está certo. Também devolve percentis P5/P25/P50/P75/P95 do preço simulado e os parâmetros REAIS do modelo (omega/alpha/beta/persistência, vol condicional vs vol histórica simples, nº de simulações, semente fixa — determinístico). Sempre busca histórico OHLC PRÓPRIO e fresco (nunca herda dado de outra chamada). Ferramenta NOVA, independente e read-only/stateless: não decide ROLAR/ASSUMIR/ENCERRAR, não recomenda ação, não grava nada — só números crus. GARCH(1,1) ainda assume normalidade condicional: não captura caudas extremas tipo gap overnight.",
+    properties: {
+      ticker:      { type: "string",  description: "Ativo subjacente (ex: ITUB4). OBRIGATÓRIO." },
+      vencimento:  { type: "string",  description: "Data do vencimento das opções, formato YYYY-MM-DD. Informe este OU 'dte_dias'." },
+      dte_dias:    { type: "integer", description: "Alternativa a 'vencimento': dias CORRIDOS até o vencimento a partir de 'data_referencia'." },
+      strikes:     { type: "array",   description: "OBRIGATÓRIO. Lista de strikes a avaliar: [{strike: 39.99, tipo: 'PUT'|'CALL', delta_bs?: -0.251}]. 'delta_bs' é opcional — se vier, habilita o alerta de divergência vs o delta Black-Scholes do OpLab." },
+      data_referencia: { type: "string", description: "Data-base da simulação, YYYY-MM-DD (padrão: hoje). O histórico buscado termina nesta data." },
+      janela_historico_dias: { type: "integer", description: "Janela de histórico em dias corridos para ajustar o GARCH (padrão: 252, ~1 ano)." },
+      n_simulacoes:  { type: "integer", description: "Trajetórias do Monte Carlo, 2.000-100.000 (padrão: 50.000)." },
+      semente_aleatoria: { type: "integer", description: "Semente do gerador aleatório — fixa por padrão (42) para reprodutibilidade entre chamadas (mesma entrada → mesmo resultado). Padrão: 42." },
+      drift_padrao: { type: "number", description: "Drift diário aplicado na simulação. Padrão: 0 (neutro — 'espelho estatístico' sem viés direcional). Mudar para != 0 introduz uma visão própria e é sinalizado na resposta." },
+      divergencia_relevante_pp: { type: "number", description: "Diferença mínima, em pontos percentuais, entre a probabilidade GARCH-MC e o delta_bs informado para disparar o alerta de divergência. Padrão: 5." },
+    },
+    required: ["ticker", "strikes"],
+    handler: (client, a) => getSimuladorVolatilidadeGarch(client, a),
   },
 ];
 
