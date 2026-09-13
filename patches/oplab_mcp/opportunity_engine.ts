@@ -18,7 +18,7 @@
 // ---------------------------------------------------------------------------
 
 import { AxiosInstance } from "axios";
-import { batchWithLimit, getIVRankHistorico, normalizarPeriodo } from "./iv_calculator.js";
+import { batchWithLimit, getIVRankHistorico, normalizarPeriodo, WHITELIST_24 } from "./iv_calculator.js";
 
 // ── Constantes / defaults ─────────────────────────────────────────────────────
 
@@ -31,12 +31,6 @@ const VOLUME_PUT_MIN = 5_000_000;       // filtro C (R$)
 const DELTA_FLOOR = -0.30;              // regra: nunca delta < -0.30
 const PREMIO_LIQUIDO_MIN = 0.40;        // regra: prêmio mínimo R$/ação
 const MAX_CONCENTRACAO = 0.35;          // regra: máx 35% da margem do plano por ativo
-
-// Lista padrão de 12 ativos pré-selecionados por prêmio histórico adequado.
-export const WHITELIST_OPORTUNIDADES = [
-  "EMBJ3", "VALE3", "PRIO3", "SANB11", "PETR4", "ITUB4",
-  "BBAS3", "BBDC4", "PSSA3", "B3SA3", "USIM5", "GGBR4",
-];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -405,10 +399,14 @@ function dimensionar(aprovados: AtivoAprovado[], p: OportunidadeParams): { trava
 // ── Normalização de parâmetros ────────────────────────────────────────────────
 
 export function normalizarOportunidadeParams(a: Record<string, unknown>): OportunidadeParams {
+  // Sem 'tickers', varre a MESMA whitelist (espelho de DADOS_ATIVOS, com sync
+  // dinâmico via DADOS_ATIVOS_CSV_URL) que get_iv_rank_bulk/get_smart_money_tracker/
+  // get_backtest_estrutural já usam — elimina a 3ª fonte de verdade divergente que
+  // esta ferramenta tinha (lista própria hardcoded de 12 ativos).
   const tickers =
     Array.isArray(a.tickers) && a.tickers.length
       ? a.tickers.map((t) => String(t).toUpperCase())
-      : [...WHITELIST_OPORTUNIDADES];
+      : [...WHITELIST_24];
   return {
     capital: Math.max(0, num(a.capital, 0)),
     // meta_mensal alinhado a meta_mensal_min_brl do portfolio_params.yaml (era 4000,
