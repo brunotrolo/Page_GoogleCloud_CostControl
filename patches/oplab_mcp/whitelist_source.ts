@@ -9,15 +9,15 @@
 // ou a leitura falhar, cai no WHITELIST_FALLBACK abaixo — que é uma CÓPIA MANUAL da
 // aba e precisa ser resincronizada à mão sempre que a planilha mudar.
 //
-// Snapshot de DADOS_ATIVOS em 15/07/2026 (26 ativos).
+// Snapshot de DADOS_ATIVOS em 13/09/2026 (28 ativos — inclui ABEV3/RENT3).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const WHITELIST_FALLBACK: string[] = [
-  "B3SA3", "BBAS3", "BBDC4", "BRAV3", "BRKM5", "CMIG4", "CSAN3", "CSNA3",
-  "DIRR3", "EMBJ3", "EQTL3", "FLRY3", "GGBR4", "ITSA4", "ITUB4", "NATU3",
-  "PETR4", "PRIO3", "PSSA3", "SANB11", "USIM5", "VALE3", "EGIE3", "WEGE3",
-  "BPAC11", "SUZB3",
-]; // 26 ativos — cópia manual da aba DADOS_ATIVOS (resincronizar se a planilha mudar)
+  "ABEV3", "B3SA3", "BBAS3", "BBDC4", "BRAV3", "BRKM5", "CMIG4", "CSAN3",
+  "CSNA3", "DIRR3", "EMBJ3", "EQTL3", "FLRY3", "GGBR4", "ITSA4", "ITUB4",
+  "NATU3", "PETR4", "PRIO3", "PSSA3", "RENT3", "SANB11", "USIM5", "VALE3",
+  "EGIE3", "WEGE3", "BPAC11", "SUZB3",
+]; // 28 ativos — cópia manual da aba DADOS_ATIVOS (resincronizar se a planilha mudar)
 
 // Um ticker B3 é 4 letras + 1–2 dígitos (ex.: VALE3, SANB11, BPAC11).
 const TICKER_RE = /^[A-Z]{4}\d{1,2}$/;
