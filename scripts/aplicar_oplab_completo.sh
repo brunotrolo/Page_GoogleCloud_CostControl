@@ -29,13 +29,16 @@ cp "$SRC/estrutura_engine.ts"           src/utils/estrutura_engine.ts
 cp "$SRC/backtest_engine.ts"            src/utils/backtest_engine.ts
 cp "$SRC/backtest_estrutural_engine.ts" src/utils/backtest_estrutural_engine.ts
 cp "$SRC/opportunity_engine.ts"         src/utils/opportunity_engine.ts
+cp "$SRC/garch_engine.ts"               src/utils/garch_engine.ts
 
 echo "==> Testes (falha aborta o deploy)..."
 cp "$SRC/bs_engine.test.ts" src/utils/bs_engine.test.ts
 cp "$SRC/whitelist_source.test.ts" src/utils/whitelist_source.test.ts
+cp "$SRC/garch_engine.test.ts" src/utils/garch_engine.test.ts
 node --experimental-strip-types src/utils/bs_engine.test.ts
 node --experimental-strip-types src/utils/whitelist_source.test.ts
-rm -f src/utils/bs_engine.test.ts src/utils/whitelist_source.test.ts
+node --experimental-strip-types src/utils/garch_engine.test.ts
+rm -f src/utils/bs_engine.test.ts src/utils/whitelist_source.test.ts src/utils/garch_engine.test.ts
 
 if git diff --quiet && [ -z "$(git status --porcelain)" ]; then
   echo "Nada a mudar (já está atualizado)."
