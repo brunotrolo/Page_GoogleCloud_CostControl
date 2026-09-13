@@ -191,7 +191,7 @@ const MIN_DIAS_CONFIAVEL = 126;
 // Mantemos o nome WHITELIST_24 e a MESMA referência de array de propósito: todos os
 // consumidores fazem `[...WHITELIST_24]` no momento da chamada, então a atualização
 // in-place propaga para todas as ferramentas sem tocar em cada arquivo.
-export const WHITELIST_24: string[] = [...WHITELIST_FALLBACK]; // 26 ativos (DADOS_ATIVOS 15/07/2026)
+export const WHITELIST_24: string[] = [...WHITELIST_FALLBACK]; // 28 ativos (DADOS_ATIVOS 13/09/2026 — inclui ABEV3/RENT3)
 
 // ── Sincronização dinâmica da whitelist com a aba DADOS_ATIVOS ───────────────
 // Se DADOS_ATIVOS_CSV_URL (endpoint "Publicar na web → CSV" da aba) estiver setada,

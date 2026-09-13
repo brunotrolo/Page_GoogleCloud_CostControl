@@ -10,9 +10,9 @@ function t(nome: string, fn: () => void | Promise<void>) {
 
 console.log('whitelist_source — testes\n');
 
-await t('fallback tem 26 ativos e inclui os adicionados / exclui os removidos', () => {
-  assert.strictEqual(WHITELIST_FALLBACK.length, 26);
-  for (const add of ['EQTL3', 'EGIE3', 'BPAC11', 'SUZB3']) assert.ok(WHITELIST_FALLBACK.includes(add), `faltou ${add}`);
+await t('fallback tem 28 ativos e inclui os adicionados / exclui os removidos', () => {
+  assert.strictEqual(WHITELIST_FALLBACK.length, 28);
+  for (const add of ['EQTL3', 'EGIE3', 'BPAC11', 'SUZB3', 'ABEV3', 'RENT3']) assert.ok(WHITELIST_FALLBACK.includes(add), `faltou ${add}`);
   for (const rem of ['COGN3', 'CMIN3', 'CPLE6', 'ELET3']) assert.ok(!WHITELIST_FALLBACK.includes(rem), `deveria ter saído: ${rem}`);
 });
 
